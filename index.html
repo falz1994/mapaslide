@@ -375,6 +375,7 @@ html, body {
 
 </div>
 
+<script src="https://unpkg.com/@supabase/supabase-js@2"></script>
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script>
 (function() {
@@ -396,6 +397,14 @@ html, body {
   L.control.zoom({ position: 'bottomright' }).addTo(map);
   L.control.attribution({ position: 'bottomright', prefix: false }).addTo(map);
 
+  /* ── SUPABASE ────────────────────── */
+  const sb = supabase.createClient(
+    'https://nsgysypegqvntlxndsaa.supabase.co',
+    'sb_publishable_4znJSfRiJYpVGpALgOCWGg_q0Gz5jdx'
+  );
+
+  map.on('moveend zoomend', saveMapState);
+
   map.on('moveend zoomend', saveMapState);
 
   /* ── STATE ────────────────────────── */
@@ -407,10 +416,10 @@ html, body {
   const drawLayer = L.layerGroup().addTo(map);
   const emojiLayer = L.layerGroup().addTo(map);
 
-  /* ── LOCALSTORAGE PERSISTENCE ──────── */
-  const STORAGE_KEY = 'mapaslide_state';
+  /* ── SUPABASE PERSISTENCE ─────────── */
+  let saveTimeout;
 
-  function saveMapState() {
+  function buildState() {
     const emojis = [];
     emojiLayer.eachLayer(function(m) {
       const ll = m.getLatLng();
@@ -426,17 +435,26 @@ html, body {
         });
       }
     });
-    const state = { emojis: emojis, drawings: drawings, view: { lat: map.getCenter().lat, lng: map.getCenter().lng, zoom: map.getZoom() } };
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+    return { emojis: emojis, drawings: drawings, view: { lat: map.getCenter().lat, lng: map.getCenter().lng, zoom: map.getZoom() } };
   }
 
-  function loadMapState() {
+  function saveMapState() {
+    clearTimeout(saveTimeout);
+    saveTimeout = setTimeout(function() {
+      const state = buildState();
+      sb.from('map_state').upsert({ id: 'default', state: state, updated_at: new Date().toISOString() }).then(function(r) {
+        if (r.error) console.warn('Supabase save error:', r.error.message);
+      });
+    }, 400);
+  }
+
+  async function loadMapState() {
     try {
-      const raw = localStorage.getItem(STORAGE_KEY);
-      if (!raw) return false;
-      const state = JSON.parse(raw);
+      const { data, error } = await sb.from('map_state').select('state').eq('id', 'default').single();
+      if (error || !data || !data.state) return false;
+      const state = data.state;
       if (state.emojis) {
-        state.emojis.forEach(item => {
+        state.emojis.forEach(function(item) {
           const icon = L.divIcon({
             html: '<div class="emoji-marker-inner">' + item.e + '<span class="clear-emoji-btn">&times;</span></div>',
             className: 'emoji-marker',
@@ -450,14 +468,9 @@ html, body {
         });
       }
       if (state.drawings) {
-        state.drawings.forEach(d => {
-          const coords = d.coords.map(c => [c.lat, c.lng]);
-          L.polyline(coords, {
-            color: d.color,
-            weight: d.weight,
-            opacity: 0.9,
-            lineCap: 'round',
-            lineJoin: 'round',
+        state.drawings.forEach(function(d) {
+          L.polyline(d.coords.map(function(c) { return [c.lat, c.lng]; }), {
+            color: d.color, weight: d.weight, opacity: 0.9, lineCap: 'round', lineJoin: 'round',
           }).addTo(drawLayer);
         });
       }
@@ -465,7 +478,7 @@ html, body {
         map.setView([state.view.lat, state.view.lng], state.view.zoom, { animate: false });
       }
       return true;
-    } catch(e) { return false; }
+    } catch(e) { console.warn('Supabase load error:', e); return false; }
   }
 
   function removeEmojiMarker(ev) {
@@ -1306,7 +1319,9 @@ html, body {
 
   /* ── BUILD UI ─────────────────────── */
   renderRecentGrid();
-  loadMapState();
+  loadMapState().then(function(loaded) {
+    if (!loaded) showStatus('Busca emojis 🔍 y selecciona uno para colocar');
+  });
 
   COLORS.forEach(c => {
     const dot = document.createElement('div');
@@ -1475,7 +1490,6 @@ html, body {
     showStatus('Todos los emojis borrados');
   });
 
-  showStatus('Busca emojis 🔍 y selecciona uno para colocar');
 })();
 </script>
 </body>
