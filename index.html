@@ -650,10 +650,10 @@ html, body {
     var props = feature.properties || {};
     var candidates = [props.ISO_A2, props.iso_a2, props.ADM0_A3, props.ISO_A3, props.iso_a3, props.ISO_A2_EH, props.name, props.ADMIN, props.admin, props.NAME, props.name_long, props.sovereignt].filter(Boolean);
     for (var i = 0; i < candidates.length; i++) {
-      var c = candidates[i];
-      var found = PAISES.find(function(p) { return p.iso === c || p.iso.toUpperCase() === String(c).toUpperCase(); });
+      var c = String(candidates[i]);
+      var found = PAISES.find(function(p) { return p.iso === c || p.iso.toUpperCase() === c.toUpperCase(); });
       if (found) return found;
-      found = PAISES.find(function(p) { return p.pais.toLowerCase() === String(c).toLowerCase(); });
+      found = PAISES.find(function(p) { return p.pais.toLowerCase() === c.toLowerCase() || altNames(p.pais).indexOf(c.toLowerCase()) >= 0; });
       if (found) return found;
     }
     return null;
