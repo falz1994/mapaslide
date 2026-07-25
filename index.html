@@ -709,7 +709,6 @@ html, body {
             if (features && features.length > 0) {
               console.log('Matched features:', features.length, 'names:', features.map(function(f){return f.properties&&f.properties.name;}));
               geojson = { type: 'FeatureCollection', features: features };
-              geojson = { type: 'FeatureCollection', features: features };
               break;
             }
           } catch(e2) { console.warn('URL fallida:', urls[u], e2); }
@@ -717,6 +716,7 @@ html, body {
         if (!geojson || !geojson.features || geojson.features.length === 0) {
           throw new Error('No se encontraron países. Probá de nuevo.');
         }
+      }
       renderPoliticalLayer(geojson);
       politicalVisible = true;
       showStatus('Mapa político activo: ' + geojson.features.length + ' países');
