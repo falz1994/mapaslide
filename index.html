@@ -308,19 +308,54 @@ html, body {
 }
 
 @media (max-width: 500px) {
-  #sidebar {
-    width: 56px;
-    min-width: 56px;
+  #app {
+    flex-direction: column;
   }
-  .emoji-btn, .tool-btn {
+  #sidebar {
+    width: 100%;
+    min-width: 100%;
+    height: auto;
+    flex-direction: row;
+    flex-wrap: nowrap;
+    align-items: center;
+    padding: 6px 8px;
+    gap: 5px;
+    overflow-x: auto;
+    overflow-y: hidden;
+    box-shadow: 0 2px 10px rgba(0,0,0,0.4);
+  }
+  .section-label { display: none; }
+  .separator {
+    width: 1px;
+    height: 24px;
+    background: #3a3a4e;
+    margin: 0 2px;
+    flex-shrink: 0;
+  }
+  #emoji-grid {
+    flex-wrap: nowrap !important;
+    flex-shrink: 0;
+  }
+  #colors-row {
+    flex-shrink: 0;
+  }
+  .emoji-btn {
     width: 38px; height: 38px;
     font-size: 20px;
     border-radius: 8px;
+    flex-shrink: 0;
   }
-  .tool-btn { font-size: 18px; }
+  .tool-btn {
+    width: 38px; height: 38px;
+    font-size: 18px;
+    border-radius: 8px;
+    flex-shrink: 0;
+  }
   .color-dot {
     width: 22px; height: 22px;
+    flex-shrink: 0;
   }
+  #map-container { flex: 1; }
   #search-panel {
     width: 94%;
     max-height: 65vh;
@@ -435,7 +470,7 @@ html, body {
         });
       }
     });
-    return { emojis: emojis, drawings: drawings, view: { lat: map.getCenter().lat, lng: map.getCenter().lng, zoom: map.getZoom() } };
+    return { emojis: emojis, drawings: drawings, recent: recentEmojis, view: { lat: map.getCenter().lat, lng: map.getCenter().lng, zoom: map.getZoom() } };
   }
 
   function saveMapState() {
@@ -476,6 +511,10 @@ html, body {
       }
       if (state.view) {
         map.setView([state.view.lat, state.view.lng], state.view.zoom, { animate: false });
+      }
+      if (state.recent) {
+        recentEmojis = state.recent;
+        renderRecentGrid();
       }
       return true;
     } catch(e) { console.warn('Supabase load error:', e); return false; }
@@ -1202,6 +1241,7 @@ html, body {
     if (recentEmojis.length > MAX_RECENT) recentEmojis.pop();
     localStorage.setItem('map_recent', JSON.stringify(recentEmojis));
     renderRecentGrid();
+    saveMapState();
   }
 
   const COLORS = ['#ff4444','#ff8f00','#ffee33','#4caf50','#2196f3','#9c27b0','#ffffff','#000000'];
