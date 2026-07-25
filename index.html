@@ -447,6 +447,7 @@ html, body {
 
     <div class="separator"></div>
 
+    <button class="tool-btn" id="btn-politics" title="Mapa político">🏛️</button>
     <button class="tool-btn" id="btn-undo" title="Deshacer">↩️</button>
     <button class="tool-btn" id="btn-redo" title="Rehacer">↪️</button>
     <button class="tool-btn" id="btn-clear-draw" title="Borrar dibujos">🗑️</button>
@@ -502,7 +503,111 @@ html, body {
 
   map.on('moveend zoomend', saveMapState);
 
-  map.on('moveend zoomend', saveMapState);
+  /* ── POLITICAL MAP DATA ───────────── */
+  const PAISES = [
+    { pais:"Argentina", iso:"AR", lider:"Javier Milei", orientacion:"derecha", sub:"derecha libertaria"},
+    { pais:"Bolivia", iso:"BO", lider:"Rodrigo Paz", orientacion:"derecha", sub:"centroderecha demócrata-cristiana"},
+    { pais:"Brasil", iso:"BR", lider:"Lula da Silva", orientacion:"izquierda", sub:"izquierda progresista"},
+    { pais:"Chile", iso:"CL", lider:"José Antonio Kast", orientacion:"derecha", sub:"derecha nacional-conservadora"},
+    { pais:"Colombia", iso:"CO", lider:"Gustavo Petro", orientacion:"izquierda", sub:"izquierda progresista", nota:"Gobierno saliente; Abelardo de la Espriella (derecha) electo"},
+    { pais:"Costa Rica", iso:"CR", lider:"Laura Fernández", orientacion:"derecha", sub:"derecha populista y liberal"},
+    { pais:"Cuba", iso:"CU", lider:"Miguel Díaz-Canel (PCC)", orientacion:"izquierda", sub:"socialismo marxista-leninista"},
+    { pais:"Ecuador", iso:"EC", lider:"Daniel Noboa", orientacion:"derecha", sub:"centroderecha liberal"},
+    { pais:"El Salvador", iso:"SV", lider:"Nayib Bukele", orientacion:"derecha", sub:"derecha populista y autoritaria"},
+    { pais:"Guatemala", iso:"GT", lider:"Bernardo Arévalo", orientacion:"izquierda", sub:"centroizquierda reformista"},
+    { pais:"Haití", iso:"HT", lider:"Autoridades transitorias", orientacion:"indeterminado", sub:"gobierno de transición"},
+    { pais:"Honduras", iso:"HN", lider:"Nasry Asfura", orientacion:"derecha", sub:"derecha conservadora tradicional"},
+    { pais:"México", iso:"MX", lider:"Claudia Sheinbaum", orientacion:"izquierda", sub:"izquierda nacional-popular"},
+    { pais:"Nicaragua", iso:"NI", lider:"Daniel Ortega y Rosario Murillo", orientacion:"izquierda", sub:"socialismo del siglo XXI (sandinismo)"},
+    { pais:"Panamá", iso:"PA", lider:"José Raúl Mulino", orientacion:"derecha", sub:"derecha conservadora"},
+    { pais:"Paraguay", iso:"PY", lider:"Santiago Peña", orientacion:"derecha", sub:"derecha conservadora tradicional"},
+    { pais:"Perú", iso:"PE", lider:"Transición (Keiko Fujimori)", orientacion:"derecha", sub:"transición conservadora"},
+    { pais:"República Dominicana", iso:"DO", lider:"Luis Abinader", orientacion:"derecha", sub:"centroderecha moderada"},
+    { pais:"Uruguay", iso:"UY", lider:"Yamandú Orsi", orientacion:"izquierda", sub:"centroizquierda socialdemócrata"},
+    { pais:"Venezuela", iso:"VE", lider:"Gobierno chavista", orientacion:"izquierda", sub:"socialismo del siglo XXI (bolivarianismo)", nota:"Crisis política y disputas de legitimidad"},
+  ];
+
+  const POLITICAL_COLORS = {
+    izquierda: '#e53935',
+    derecha: '#1e88e5',
+    indeterminado: '#757575',
+  };
+
+  let politicalLayer = null;
+  let politicalVisible = false;
+  let cachedGeoJSON = null;
+
+  async function togglePolitical() {
+    const btn = document.getElementById('btn-politics');
+    if (politicalVisible) {
+      if (politicalLayer) { map.removeLayer(politicalLayer); politicalLayer = null; }
+      politicalVisible = false;
+      btn.classList.remove('active');
+      showStatus('Mapa político oculto');
+      return;
+    }
+    btn.classList.add('active');
+    showStatus('Cargando mapa político...');
+    try {
+      let geojson = cachedGeoJSON;
+      if (!geojson) {
+        const cached = localStorage.getItem('map_political_geo');
+        if (cached) {
+          geojson = JSON.parse(cached);
+          cachedGeoJSON = geojson;
+        }
+      }
+      if (!geojson) {
+        const resp = await fetch('https://raw.githubusercontent.com/datasets/geo-countries/master/data/countries.geojson');
+        if (!resp.ok) throw new Error('HTTP ' + resp.status);
+        const full = await resp.json();
+        const isoSet = new Set(PAISES.map(function(p) { return p.iso; }));
+        geojson = { type: 'FeatureCollection', features: full.features.filter(function(f) { return isoSet.has(f.properties.ISO_A2); }) };
+        try { localStorage.setItem('map_political_geo', JSON.stringify(geojson)); } catch(e) {}
+        cachedGeoJSON = geojson;
+      }
+      renderPoliticalLayer(geojson);
+      politicalVisible = true;
+      showStatus('Mapa político activo: 🔴 izquierda  🔵 derecha');
+    } catch(e) {
+      btn.classList.remove('active');
+      showStatus('Error al cargar mapa político: ' + e.message);
+      console.warn('Political map error:', e);
+    }
+  }
+
+  function renderPoliticalLayer(geojson) {
+    if (politicalLayer) map.removeLayer(politicalLayer);
+    politicalLayer = L.geoJSON(geojson, {
+      style: function(feature) {
+        const iso = feature.properties.ISO_A2;
+        const pais = PAISES.find(function(p) { return p.iso === iso; });
+        const color = pais ? POLITICAL_COLORS[pais.orientacion] : '#555';
+        return {
+          fillColor: color,
+          fillOpacity: 0.55,
+          color: '#222',
+          weight: 1.2,
+          opacity: 0.9,
+        };
+      },
+      onEachFeature: function(feature, layer) {
+        const iso = feature.properties.ISO_A2;
+        const pais = PAISES.find(function(p) { return p.iso === iso; });
+        if (!pais) return;
+        const color = POLITICAL_COLORS[pais.orientacion];
+        const dot = '<span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:' + color + ';margin-right:6px;"></span>';
+        let html = '<b>' + dot + pais.pais + '</b><br>';
+        html += '<small>Líder: ' + pais.lider + '</small><br>';
+        html += '<small>Orientación: <b style="color:' + color + '">' + pais.orientacion.toUpperCase() + '</b></small><br>';
+        html += '<small>' + pais.sub + '</small>';
+        if (pais.nota) html += '<br><small style="color:#ff9800">⚠ ' + pais.nota + '</small>';
+        layer.bindPopup(html, { maxWidth: 260 });
+        layer.on('mouseover', function() { layer.setStyle({ fillOpacity: 0.75, weight: 2.2 }); });
+        layer.on('mouseout', function() { layer.setStyle({ fillOpacity: 0.55, weight: 1.2 }); });
+      },
+    }).addTo(map);
+  }
 
   /* ── STATE ────────────────────────── */
   let selectedEmoji = null;
@@ -1518,6 +1623,7 @@ html, body {
 
   btnUndo.addEventListener('click', performUndo);
   btnRedo.addEventListener('click', performRedo);
+  document.getElementById('btn-politics').addEventListener('click', togglePolitical);
 
   document.addEventListener('keydown', function(e) {
     if (e.ctrlKey && e.key === 'z' && !e.shiftKey) { e.preventDefault(); performUndo(); return; }
