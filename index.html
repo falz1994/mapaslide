@@ -357,6 +357,108 @@ html, body {
   width: 100%;
 }
 
+/* ── TEXT CREATOR OVERLAY ─────── */
+#text-overlay {
+  position: fixed;
+  top: 0; left: 0; right: 0; bottom: 0;
+  background: rgba(0,0,0,0.65);
+  z-index: 99999;
+  display: none;
+  align-items: flex-start;
+  justify-content: center;
+  padding-top: 60px;
+}
+
+#text-overlay.open {
+  display: flex;
+}
+
+#text-panel {
+  background: #1e1e2e;
+  border-radius: 16px;
+  width: 90%;
+  max-width: 400px;
+  overflow: hidden;
+  box-shadow: 0 20px 50px rgba(0,0,0,0.5);
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+#text-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+#text-close {
+  width: 36px; height: 36px;
+  font-size: 20px;
+  background: #333;
+  border: none;
+  border-radius: 50%;
+  color: #fff;
+  cursor: pointer;
+}
+
+#text-input {
+  background: #2a2a3e;
+  border: 1px solid #444;
+  border-radius: 10px;
+  color: #fff;
+  font-size: 18px;
+  padding: 12px 14px;
+  outline: none;
+}
+
+#text-input:focus {
+  border-color: #4fc3f7;
+}
+
+#text-preview {
+  min-height: 48px;
+  background: #141420;
+  border-radius: 10px;
+  padding: 12px;
+  font-size: 22px;
+  color: #fff;
+  text-align: center;
+  word-break: break-all;
+  letter-spacing: 2px;
+}
+
+#text-place {
+  background: #4fc3f7;
+  color: #111;
+  border: none;
+  border-radius: 10px;
+  padding: 12px;
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+#text-place:active {
+  background: #039be5;
+}
+
+.text-marker-inner {
+  font-size: 24px;
+  text-align: center;
+  letter-spacing: 2px;
+  filter: drop-shadow(1px 2px 3px rgba(0,0,0,0.6));
+  cursor: pointer;
+  background: rgba(0,0,0,0.55);
+  border-radius: 8px;
+  padding: 4px 8px;
+  white-space: nowrap;
+}
+
+.text-marker-inner:hover {
+  background: rgba(0,0,0,0.75);
+}
+
 @media (max-width: 500px) {
   #app {
     flex-direction: column;
@@ -448,6 +550,7 @@ html, body {
     <div class="separator"></div>
 
     <button class="tool-btn" id="btn-politics" title="Mapa político">🏛️</button>
+    <button class="tool-btn" id="btn-text" title="Texto emoji">🔤</button>
     <button class="tool-btn" id="btn-undo" title="Deshacer">↩️</button>
     <button class="tool-btn" id="btn-redo" title="Rehacer">↪️</button>
     <button class="tool-btn" id="btn-clear-draw" title="Borrar dibujos">🗑️</button>
@@ -466,7 +569,20 @@ html, body {
       <div id="search-header">
         <input type="text" id="search-input" placeholder="Buscar emoji (ej: casa, flecha, arbol...)" autocomplete="off" />
         <button id="search-close">&times;</button>
+  <!-- TEXT CREATOR OVERLAY -->
+  <div id="text-overlay">
+    <div id="text-panel">
+      <div id="text-header">
+        <span style="font-weight:600;color:#fff;">Texto emoji</span>
+        <button id="text-close">&times;</button>
       </div>
+      <input type="text" id="text-input" placeholder="Escribí un texto..." maxlength="30" autocomplete="off" />
+      <div id="text-preview"></div>
+      <button id="text-place">📍 Colocar en el mapa</button>
+    </div>
+  </div>
+
+</div>
       <div id="search-results"></div>
     </div>
   </div>
@@ -539,6 +655,7 @@ html, body {
   let cachedGeoJSON = null;
 
   async function togglePolitical() {
+    console.log('togglePolitical called');
     const btn = document.getElementById('btn-politics');
     if (politicalVisible) {
       if (politicalLayer) { map.removeLayer(politicalLayer); politicalLayer = null; }
@@ -575,6 +692,9 @@ html, body {
         // handle both GeoJSON and TopoJSON
         var features;
         if (full.type === 'Topology') {
+          if (typeof topojson === 'undefined') {
+            throw new Error('topojson no disponible. Recargá la página.');
+          }
           features = topojson.feature(full, full.objects.countries).features;
           // map numeric IDs to ISO codes (110m uses numeric IDs, need name matching)
           features = features.filter(function(f) {
@@ -668,6 +788,79 @@ html, body {
   let currentLine = null;
   const drawLayer = L.layerGroup().addTo(map);
   const emojiLayer = L.layerGroup().addTo(map);
+  const textLayer = L.layerGroup().addTo(map);
+
+  /* ── TEXT-TO-EMOJI CONVERTER ─────── */
+  function textToEmoji(str) {
+    var result = '';
+    for (var i = 0; i < str.length; i++) {
+      var ch = str[i];
+      var code = ch.charCodeAt(0);
+      if (code >= 65 && code <= 90) { result += String.fromCodePoint(0x1F1E6 + (code - 65)); }
+      else if (code >= 97 && code <= 122) { result += String.fromCodePoint(0x1F1E6 + (code - 97)); }
+      else if (code >= 48 && code <= 57) { result += String.fromCodePoint(0x30 + code) + '\uFE0F\u20E3'; }
+      else if (ch === ' ') { result += '  '; }
+      else if (ch === '!') { result += '\u2757'; }
+      else if (ch === '?') { result += '\u2753'; }
+      else { result += ch; }
+    }
+    return result;
+  }
+
+  function removeTextMarker(ev) {
+    L.DomEvent.stopPropagation(ev);
+    pushUndo();
+    textLayer.removeLayer(this);
+    saveMapState();
+  }
+
+  function addTextObject(latlng, text) {
+    var emojiText = textToEmoji(text);
+    var icon = L.divIcon({
+      html: '<div class="text-marker-inner" title="Arrastrá para mover | Click para borrar">' + emojiText + '</div>',
+      className: 'text-marker',
+      iconSize: null,
+      iconAnchor: [0, 16],
+    });
+    var m = L.marker(latlng, { icon: icon, draggable: true, interactive: true, autoPan: true }).addTo(textLayer);
+    m._text = text;
+    m._emojiText = emojiText;
+    m.on('click', removeTextMarker);
+    m.on('dragend', function() { saveMapState(); });
+    return m;
+  }
+
+  /* TEXT CREATOR MODAL */
+  var textOverlay = document.getElementById('text-overlay');
+  var textInput = document.getElementById('text-input');
+  var textPreview = document.getElementById('text-preview');
+  var textClose = document.getElementById('text-close');
+  var textPlaceBtn = document.getElementById('text-place');
+
+  document.getElementById('btn-text').addEventListener('click', function() {
+    textOverlay.classList.add('open');
+    textInput.value = '';
+    textPreview.textContent = '';
+    setTimeout(function() { textInput.focus(); }, 100);
+  });
+
+  textClose.addEventListener('click', function() { textOverlay.classList.remove('open'); });
+  textOverlay.addEventListener('click', function(e) { if (e.target === textOverlay) textOverlay.classList.remove('open'); });
+
+  textInput.addEventListener('input', function() {
+    textPreview.textContent = textToEmoji(this.value);
+  });
+
+  textPlaceBtn.addEventListener('click', function() {
+    var text = textInput.value.trim();
+    if (!text) return;
+    textOverlay.classList.remove('open');
+    var center = map.getCenter();
+    pushUndo();
+    addTextObject(center, text);
+    saveMapState();
+    showStatus('Texto "' + text + '" colocado. Arrastralo para moverlo.');
+  });
 
   /* ── UNDO / REDO ──────────────────── */
   const MAX_HISTORY = 80;
@@ -698,6 +891,7 @@ html, body {
   function restoreFromState(state) {
     emojiLayer.clearLayers();
     drawLayer.clearLayers();
+    textLayer.clearLayers();
     if (state.emojis) {
       state.emojis.forEach(function(item) {
         const icon = L.divIcon({
@@ -716,6 +910,9 @@ html, body {
           color: d.color, weight: d.weight, opacity: 0.9, lineCap: 'round', lineJoin: 'round',
         }).addTo(drawLayer);
       });
+    }
+    if (state.texts) {
+      state.texts.forEach(function(t) { addTextObject(L.latLng(t.lat, t.lng), t.text); });
     }
     if (state.view) {
       map.setView([state.view.lat, state.view.lng], state.view.zoom, { animate: false });
@@ -741,7 +938,12 @@ html, body {
         });
       }
     });
-    return { emojis: emojis, drawings: drawings, recent: recentEmojis, view: { lat: map.getCenter().lat, lng: map.getCenter().lng, zoom: map.getZoom() } };
+    const texts = [];
+    textLayer.eachLayer(function(m) {
+      var ll = m.getLatLng();
+      texts.push({ text: m._text, lat: ll.lat, lng: ll.lng });
+    });
+    return { emojis: emojis, drawings: drawings, texts: texts, recent: recentEmojis, view: { lat: map.getCenter().lat, lng: map.getCenter().lng, zoom: map.getZoom() } };
   }
 
   function saveMapState() {
@@ -759,7 +961,8 @@ html, body {
       const { data, error } = await sb.from('map_state').select('state').eq('id', 'default').single();
       if (error || !data || !data.state) return false;
       const state = data.state;
-      if (state.emojis) {
+    textLayer.clearLayers();
+    if (state.emojis) {
         state.emojis.forEach(function(item) {
           const icon = L.divIcon({
             html: '<div class="emoji-marker-inner">' + item.e + '<span class="clear-emoji-btn">&times;</span></div>',
@@ -779,6 +982,9 @@ html, body {
             color: d.color, weight: d.weight, opacity: 0.9, lineCap: 'round', lineJoin: 'round',
           }).addTo(drawLayer);
         });
+      }
+      if (state.texts) {
+        state.texts.forEach(function(t) { addTextObject(L.latLng(t.lat, t.lng), t.text); });
       }
       if (state.view) {
         map.setView([state.view.lat, state.view.lng], state.view.zoom, { animate: false });
@@ -1502,6 +1708,46 @@ html, body {
     { e:'♒', n:'acuario aquarius zodiaco signo astrologia' },
     { e:'♓', n:'piscis pisces zodiaco signo astrologia' },
     { e:'⛎', n:'ofiuco ophiuchus zodiaco signo serpiente' },
+
+    // flags & tech
+    { e:'🇦🇷', n:'argentina flag bandera argentina sudamerica' },
+    { e:'🇧🇴', n:'bolivia flag bandera bolivia sudamerica' },
+    { e:'🇧🇷', n:'brasil brazil flag bandera sudamerica' },
+    { e:'🇨🇱', n:'chile flag bandera chile sudamerica' },
+    { e:'🇨🇴', n:'colombia flag bandera colombia sudamerica' },
+    { e:'🇨🇷', n:'costa rica flag bandera costa rica centroamerica' },
+    { e:'🇨🇺', n:'cuba flag bandera cuba caribe socialismo' },
+    { e:'🇩🇴', n:'republica dominicana dominican flag bandera caribe' },
+    { e:'🇪🇨', n:'ecuador flag bandera ecuador sudamerica' },
+    { e:'🇸🇻', n:'el salvador flag bandera el salvador centroamerica' },
+    { e:'🇬🇹', n:'guatemala flag bandera guatemala centroamerica' },
+    { e:'🇭🇹', n:'haiti flag bandera haiti caribe' },
+    { e:'🇭🇳', n:'honduras flag bandera honduras centroamerica' },
+    { e:'🇲🇽', n:'mexico flag bandera mexico norteamerica' },
+    { e:'🇳🇮', n:'nicaragua flag bandera nicaragua centroamerica' },
+    { e:'🇵🇦', n:'panama flag bandera panama centroamerica' },
+    { e:'🇵🇾', n:'paraguay flag bandera paraguay sudamerica' },
+    { e:'🇵🇪', n:'peru flag bandera peru sudamerica' },
+    { e:'🇺🇾', n:'uruguay flag bandera uruguay sudamerica' },
+    { e:'🇻🇪', n:'venezuela flag bandera venezuela sudamerica' },
+    { e:'🇺🇸', n:'usa united states estados unidos flag bandera norteamerica' },
+    { e:'🇨🇦', n:'canada flag bandera canada norteamerica' },
+    { e:'🇬🇧', n:'uk united kingdom reino unido flag bandera europa' },
+    { e:'🇪🇸', n:'spain españa flag bandera europa' },
+    { e:'🇫🇷', n:'france francia flag bandera europa' },
+    { e:'🇩🇪', n:'germany alemania flag bandera europa' },
+    { e:'🇮🇹', n:'italy italia flag bandera europa' },
+    { e:'🇨🇳', n:'china flag bandera asia' },
+    { e:'🇯🇵', n:'japan japon flag bandera asia' },
+    { e:'🇰🇷', n:'korea south corea sur flag bandera asia' },
+    { e:'🇷🇺', n:'russia rusia flag bandera' },
+    { e:'🇮🇳', n:'india flag bandera asia' },
+    { e:'🖥️', n:'servidor server computadora desktop datacenter data center pc monitor' },
+    { e:'🗄️', n:'archivador servidor rack server file cabinet datacenter' },
+    { e:'💾', n:'disco floppy disk save storage almacenamiento data datos' },
+    { e:'📡', n:'antena satelite satellite antenna comunicacion data' },
+    { e:'⚙️', n:'engranaje gear configuracion settings servidor engine' },
+    { e:'🏭', n:'fabrica factory industria datacenter infraestructura' },
   ];
 
   const MAX_RECENT = 18;
