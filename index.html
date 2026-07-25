@@ -677,26 +677,39 @@ html, body {
       let geojson = cachedGeoJSON;
       if (!geojson) {
         var raw = localStorage.getItem('map_political_geo');
-        if (raw) { try { geojson = JSON.parse(raw); cachedGeoJSON = geojson; } catch(e2) {} }
+        if (raw) {
+          try {
+            var parsed = JSON.parse(raw);
+            if (parsed && parsed.features && parsed.features.length > 0) {
+              geojson = parsed; cachedGeoJSON = geojson;
+              console.log('GeoJSON cargado desde caché:', parsed.features.length, 'features');
+            } else {
+              console.warn('Caché político vacío/inválido, se ignora');
+              localStorage.removeItem('map_political_geo');
+            }
+          } catch(e2) { localStorage.removeItem('map_political_geo'); }
+        }
       }
       if (!geojson) {
         var urls = [
           'https://cdn.jsdelivr.net/npm/world-atlas@2/countries-110m.json',
-          'https://raw.githubusercontent.com/datasets/geo-countries/master/data/countries.geojson',
+          'https://unpkg.com/world-atlas@2/countries-110m.json',
         ];
         var features = null;
         for (var u = 0; u < urls.length; u++) {
           try {
+            console.log('Fetch político:', urls[u]);
             var resp = await fetch(urls[u]);
-            if (!resp.ok) continue;
+            if (!resp.ok) { console.warn('HTTP ' + resp.status, urls[u]); continue; }
             var full = await resp.json();
+            console.log('JSON recibido, type:', full.type, 'objects:', full.objects ? Object.keys(full.objects) : 'n/a');
             var isoSet = {};
             PAISES.forEach(function(p) { isoSet[p.iso] = true; });
 
             if (full.type === 'Topology') {
-              if (typeof topojson === 'undefined') continue;
+              if (typeof topojson === 'undefined') { console.error('topojson NO está cargado'); continue; }
               var objKey = full.objects.countries ? 'countries' : (full.objects.countries110 ? 'countries110' : null);
-              if (!objKey) continue;
+              if (!objKey) { console.error('No se encontró objects.countries'); continue; }
               features = topojson.feature(full, full.objects[objKey]).features;
               console.log('TopoJSON features total:', features.length, 'sample names:', features.slice(0,5).map(function(f){return f.properties&&f.properties.name;}));
               features = features.filter(function(f) {
