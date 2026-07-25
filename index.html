@@ -474,6 +474,7 @@ html, body {
 </div>
 
 <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
+<script src="https://unpkg.com/topojson-client@3"></script>
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script>
 (function() {
@@ -551,62 +552,111 @@ html, body {
     try {
       let geojson = cachedGeoJSON;
       if (!geojson) {
-        const cached = localStorage.getItem('map_political_geo');
-        if (cached) {
-          geojson = JSON.parse(cached);
-          cachedGeoJSON = geojson;
-        }
+        var raw = localStorage.getItem('map_political_geo');
+        if (raw) { try { geojson = JSON.parse(raw); cachedGeoJSON = geojson; } catch(e2) {} }
       }
       if (!geojson) {
-        const resp = await fetch('https://raw.githubusercontent.com/datasets/geo-countries/master/data/countries.geojson');
-        if (!resp.ok) throw new Error('HTTP ' + resp.status);
-        const full = await resp.json();
-        const isoSet = new Set(PAISES.map(function(p) { return p.iso; }));
-        geojson = { type: 'FeatureCollection', features: full.features.filter(function(f) { return isoSet.has(f.properties.ISO_A2); }) };
-        try { localStorage.setItem('map_political_geo', JSON.stringify(geojson)); } catch(e) {}
+        var urls = [
+          'https://cdn.jsdelivr.net/npm/world-atlas@2/countries-110m.json',
+          'https://raw.githubusercontent.com/datasets/geo-countries/master/data/countries.geojson',
+        ];
+        var resp;
+        for (var i = 0; i < urls.length; i++) {
+          try {
+            resp = await fetch(urls[i]);
+            if (resp.ok) break;
+          } catch(e2) { continue; }
+        }
+        if (!resp || !resp.ok) throw new Error('No se pudo descargar el mapa base');
+        var full = await resp.json();
+        var isoSet = {};
+        PAISES.forEach(function(p) { isoSet[p.iso] = true; });
+
+        // handle both GeoJSON and TopoJSON
+        var features;
+        if (full.type === 'Topology') {
+          features = topojson.feature(full, full.objects.countries).features;
+          // map numeric IDs to ISO codes (110m uses numeric IDs, need name matching)
+          features = features.filter(function(f) {
+            var name = f.properties && f.properties.name;
+            return name && PAISES.some(function(p) {
+              return p.pais.toLowerCase() === name.toLowerCase() ||
+                     altNames(p.pais).indexOf(name.toLowerCase()) >= 0;
+            });
+          });
+        } else {
+          features = full.features.filter(function(f) {
+            var code = (f.properties && (f.properties.ISO_A2 || f.properties.iso_a2 || f.properties.ADM0_A3)) || '';
+            return isoSet[code] || PAISES.some(function(p) { return p.iso === code; });
+          });
+        }
+        geojson = { type: 'FeatureCollection', features: features };
+        try { localStorage.setItem('map_political_geo', JSON.stringify(geojson)); } catch(e3) {}
         cachedGeoJSON = geojson;
+      }
+      if (!geojson.features || geojson.features.length === 0) {
+        throw new Error('No se encontraron países para el mapa político');
       }
       renderPoliticalLayer(geojson);
       politicalVisible = true;
-      showStatus('Mapa político activo: 🔴 izquierda  🔵 derecha');
+      showStatus('Mapa político activo: ' + geojson.features.length + ' países');
     } catch(e) {
       btn.classList.remove('active');
-      showStatus('Error al cargar mapa político: ' + e.message);
-      console.warn('Political map error:', e);
+      console.error('Error mapa político:', e);
+      showStatus('Error: ' + e.message + '. Reintentá.');
     }
+  }
+
+  function altNames(pais) {
+    var map = { 'brasil':'brazil', 'méxico':'mexico', 'perú':'peru', 'panamá':'panama', 'república dominicana':'dominican rep.', 'el salvador':'el salvador', 'haití':'haiti', 'cuba':'cuba', 'venezuela':'venezuela', 'colombia':'colombia', 'chile':'chile', 'argentina':'argentina', 'bolivia':'bolivia', 'ecuador':'ecuador', 'uruguay':'uruguay', 'paraguay':'paraguay', 'guatemala':'guatemala', 'honduras':'honduras', 'nicaragua':'nicaragua', 'costa rica':'costa rica' };
+    var n = pais.toLowerCase(), alts = [n];
+    if (map[n]) alts.push(map[n]);
+    return alts;
   }
 
   function renderPoliticalLayer(geojson) {
     if (politicalLayer) map.removeLayer(politicalLayer);
     politicalLayer = L.geoJSON(geojson, {
       style: function(feature) {
-        const iso = feature.properties.ISO_A2;
-        const pais = PAISES.find(function(p) { return p.iso === iso; });
-        const color = pais ? POLITICAL_COLORS[pais.orientacion] : '#555';
+        var name = (feature.properties && (feature.properties.name || feature.properties.ADMIN || feature.properties.ISO_A2 || '')) || '';
+        var pais = findPais(feature);
+        var color = pais ? POLITICAL_COLORS[pais.orientacion] : '#555';
         return {
           fillColor: color,
-          fillOpacity: 0.55,
-          color: '#222',
-          weight: 1.2,
+          fillOpacity: 0.45,
+          color: '#1a1a2e',
+          weight: 1.4,
           opacity: 0.9,
         };
       },
       onEachFeature: function(feature, layer) {
-        const iso = feature.properties.ISO_A2;
-        const pais = PAISES.find(function(p) { return p.iso === iso; });
+        var pais = findPais(feature);
         if (!pais) return;
-        const color = POLITICAL_COLORS[pais.orientacion];
-        const dot = '<span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:' + color + ';margin-right:6px;"></span>';
-        let html = '<b>' + dot + pais.pais + '</b><br>';
+        var color = POLITICAL_COLORS[pais.orientacion];
+        var dot = '<span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:' + color + ';margin-right:6px;"></span>';
+        var html = '<b>' + dot + pais.pais + '</b><br>';
         html += '<small>Líder: ' + pais.lider + '</small><br>';
         html += '<small>Orientación: <b style="color:' + color + '">' + pais.orientacion.toUpperCase() + '</b></small><br>';
         html += '<small>' + pais.sub + '</small>';
         if (pais.nota) html += '<br><small style="color:#ff9800">⚠ ' + pais.nota + '</small>';
         layer.bindPopup(html, { maxWidth: 260 });
-        layer.on('mouseover', function() { layer.setStyle({ fillOpacity: 0.75, weight: 2.2 }); });
-        layer.on('mouseout', function() { layer.setStyle({ fillOpacity: 0.55, weight: 1.2 }); });
+        layer.on('mouseover', function() { layer.setStyle({ fillOpacity: 0.7, weight: 2.4 }); });
+        layer.on('mouseout', function() { layer.setStyle({ fillOpacity: 0.45, weight: 1.4 }); });
       },
     }).addTo(map);
+  }
+
+  function findPais(feature) {
+    var props = feature.properties || {};
+    var candidates = [props.ISO_A2, props.iso_a2, props.ADM0_A3, props.ISO_A3, props.iso_a3, props.ISO_A2_EH, props.name, props.ADMIN, props.admin, props.NAME, props.name_long, props.sovereignt].filter(Boolean);
+    for (var i = 0; i < candidates.length; i++) {
+      var c = candidates[i];
+      var found = PAISES.find(function(p) { return p.iso === c || p.iso.toUpperCase() === String(c).toUpperCase(); });
+      if (found) return found;
+      found = PAISES.find(function(p) { return p.pais.toLowerCase() === String(c).toLowerCase(); });
+      if (found) return found;
+    }
+    return null;
   }
 
   /* ── STATE ────────────────────────── */
