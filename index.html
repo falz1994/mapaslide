@@ -396,6 +396,8 @@ html, body {
   L.control.zoom({ position: 'bottomright' }).addTo(map);
   L.control.attribution({ position: 'bottomright', prefix: false }).addTo(map);
 
+  map.on('moveend zoomend', saveMapState);
+
   /* ── STATE ────────────────────────── */
   let selectedEmoji = null;
   let drawMode = false;
@@ -404,6 +406,74 @@ html, body {
   let currentLine = null;
   const drawLayer = L.layerGroup().addTo(map);
   const emojiLayer = L.layerGroup().addTo(map);
+
+  /* ── LOCALSTORAGE PERSISTENCE ──────── */
+  const STORAGE_KEY = 'mapaslide_state';
+
+  function saveMapState() {
+    const emojis = [];
+    emojiLayer.eachLayer(function(m) {
+      const ll = m.getLatLng();
+      emojis.push({ e: m._emoji, lat: ll.lat, lng: ll.lng });
+    });
+    const drawings = [];
+    drawLayer.eachLayer(function(p) {
+      if (p.getLatLngs) {
+        drawings.push({
+          coords: p.getLatLngs().map(ll => ({ lat: ll.lat, lng: ll.lng })),
+          color: p.options.color || '#ff4444',
+          weight: p.options.weight || 4,
+        });
+      }
+    });
+    const state = { emojis: emojis, drawings: drawings, view: { lat: map.getCenter().lat, lng: map.getCenter().lng, zoom: map.getZoom() } };
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+  }
+
+  function loadMapState() {
+    try {
+      const raw = localStorage.getItem(STORAGE_KEY);
+      if (!raw) return false;
+      const state = JSON.parse(raw);
+      if (state.emojis) {
+        state.emojis.forEach(item => {
+          const icon = L.divIcon({
+            html: '<div class="emoji-marker-inner">' + item.e + '<span class="clear-emoji-btn">&times;</span></div>',
+            className: 'emoji-marker',
+            iconSize: [36, 36],
+            iconAnchor: [18, 18],
+          });
+          const marker = L.marker([item.lat, item.lng], { icon, interactive: true }).addTo(emojiLayer);
+          marker._emoji = item.e;
+          marker.bindTooltip(item.e, { direction: 'top', offset: [0, -18], opacity: 0.85 });
+          marker.on('click', removeEmojiMarker);
+        });
+      }
+      if (state.drawings) {
+        state.drawings.forEach(d => {
+          const coords = d.coords.map(c => [c.lat, c.lng]);
+          L.polyline(coords, {
+            color: d.color,
+            weight: d.weight,
+            opacity: 0.9,
+            lineCap: 'round',
+            lineJoin: 'round',
+          }).addTo(drawLayer);
+        });
+      }
+      if (state.view) {
+        map.setView([state.view.lat, state.view.lng], state.view.zoom, { animate: false });
+      }
+      return true;
+    } catch(e) { return false; }
+  }
+
+  function removeEmojiMarker(ev) {
+    if (drawMode) return;
+    L.DomEvent.stopPropagation(ev);
+    emojiLayer.removeLayer(this);
+    saveMapState();
+  }
 
   /* ── EMOJI DATABASE ──────────────── */
   const EMOJI_DB = [
@@ -1236,6 +1306,7 @@ html, body {
 
   /* ── BUILD UI ─────────────────────── */
   renderRecentGrid();
+  loadMapState();
 
   COLORS.forEach(c => {
     const dot = document.createElement('div');
@@ -1320,13 +1391,10 @@ html, body {
     });
 
     const marker = L.marker(e.latlng, { icon, interactive: true }).addTo(emojiLayer);
+    marker._emoji = selectedEmoji;
     marker.bindTooltip(selectedEmoji, { direction: 'top', offset: [0, -18], opacity: 0.85 });
-
-    marker.on('click', function(ev) {
-      if (drawMode) return;
-      L.DomEvent.stopPropagation(ev);
-      emojiLayer.removeLayer(marker);
-    });
+    marker.on('click', removeEmojiMarker);
+    saveMapState();
   });
 
   /* ── DRAWING ──────────────────────── */
@@ -1383,6 +1451,7 @@ html, body {
     if (!drawMode || !isDrawing) return;
     isDrawing = false;
     currentLine = null;
+    saveMapState();
   }
 
   map.on('mousedown', startDrawing);
@@ -1396,11 +1465,13 @@ html, body {
 
   btnClearDraw.addEventListener('click', function() {
     drawLayer.clearLayers();
+    saveMapState();
     showStatus('Todos los dibujos borrados');
   });
 
   btnClearEmoj.addEventListener('click', function() {
     emojiLayer.clearLayers();
+    saveMapState();
     showStatus('Todos los emojis borrados');
   });
 
