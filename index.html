@@ -102,8 +102,50 @@ html, body {
   box-shadow: 0 0 12px rgba(255,112,67,0.5);
 }
 
+/* ── DRAW OPTIONS PANEL ───────── */
+#draw-options {
+  display: none;
+  flex-direction: column;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 0;
+}
+
+#draw-options.open {
+  display: flex;
+}
+
+#width-row {
+  display: flex;
+  gap: 3px;
+}
+
+.width-btn {
+  width: 40px; height: 24px;
+  background: #2a2a3e;
+  border: 2px solid transparent;
+  border-radius: 6px;
+  cursor: pointer;
+  color: #ccc;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+  transition: all 0.15s;
+}
+
+.width-btn.active {
+  border-color: #ff7043;
+  background: #3e2a1e;
+}
+
+#colors-row {
+  display: flex;
+  gap: 3px;
+}
+
 .color-dot {
-  width: 28px; height: 28px;
+  width: 24px; height: 24px;
   border-radius: 50%;
   border: 2px solid #555;
   cursor: pointer;
@@ -114,6 +156,14 @@ html, body {
   border-color: #fff;
   box-shadow: 0 0 8px rgba(255,255,255,0.6);
   transform: scale(1.15);
+}
+
+#emoji-grid {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 3px;
+  padding: 0 2px;
 }
 
 .separator {
@@ -326,8 +376,7 @@ html, body {
   }
   .section-label { display: none; }
   .separator {
-    width: 1px;
-    height: 24px;
+    width: 1px; height: 24px;
     background: #3a3a4e;
     margin: 0 2px;
     flex-shrink: 0;
@@ -336,7 +385,12 @@ html, body {
     flex-wrap: nowrap !important;
     flex-shrink: 0;
   }
-  #colors-row {
+  #draw-options {
+    flex-direction: row !important;
+    gap: 4px;
+    flex-shrink: 0;
+  }
+  #colors-row, #width-row {
     flex-shrink: 0;
   }
   .emoji-btn {
@@ -351,9 +405,12 @@ html, body {
     border-radius: 8px;
     flex-shrink: 0;
   }
+  .width-btn {
+    width: 34px; height: 20px;
+    font-size: 12px;
+  }
   .color-dot {
-    width: 22px; height: 22px;
-    flex-shrink: 0;
+    width: 20px; height: 20px;
   }
   #map-container { flex: 1; }
   #search-panel {
@@ -373,22 +430,27 @@ html, body {
 <div id="app">
 
   <div id="sidebar">
-    <button class="tool-btn" id="btn-search" title="Buscar emojis" style="font-size:20px;">🔍</button>
-    <span class="section-label" id="recent-label">Rápidos</span>
-    <div id="emoji-grid" style="display:flex;flex-wrap:wrap;justify-content:center;gap:3px;padding:0 2px;"></div>
+    <button class="tool-btn" id="btn-search" title="Buscar emoji">🔍</button>
+
+    <span class="section-label">Historial</span>
+    <div id="emoji-grid"></div>
 
     <div class="separator"></div>
-    <span class="section-label">Dibujo</span>
 
+    <span class="section-label">Dibujo</span>
     <button class="tool-btn" id="btn-draw" title="Lápiz">✏️</button>
 
-    <div id="colors-row" style="display:flex;gap:4px;margin-top:4px;"></div>
-
-    <button class="tool-btn" id="btn-clear-draw" title="Borrar dibujos" style="font-size:16px;">🗑️</button>
+    <div id="draw-options">
+      <div id="width-row"></div>
+      <div id="colors-row"></div>
+    </div>
 
     <div class="separator"></div>
 
-    <button class="tool-btn" id="btn-clear-emojis" title="Borrar emojis del mapa" style="font-size:16px;">🧹</button>
+    <button class="tool-btn" id="btn-undo" title="Deshacer">↩️</button>
+    <button class="tool-btn" id="btn-redo" title="Rehacer">↪️</button>
+    <button class="tool-btn" id="btn-clear-draw" title="Borrar dibujos">🗑️</button>
+    <button class="tool-btn" id="btn-clear-emojis" title="Borrar emojis">🧹</button>
   </div>
 
   <div id="map-container">
@@ -446,10 +508,64 @@ html, body {
   let selectedEmoji = null;
   let drawMode = false;
   let drawColor = '#ff4444';
+  let drawWidth = 4;
   let isDrawing = false;
   let currentLine = null;
   const drawLayer = L.layerGroup().addTo(map);
   const emojiLayer = L.layerGroup().addTo(map);
+
+  /* ── UNDO / REDO ──────────────────── */
+  const MAX_HISTORY = 80;
+  let undoStack = [];
+  let redoStack = [];
+
+  function pushUndo() {
+    const s = buildState();
+    undoStack.push(JSON.stringify(s));
+    if (undoStack.length > MAX_HISTORY) undoStack.shift();
+    redoStack = [];
+  }
+
+  function performUndo() {
+    if (undoStack.length === 0) return;
+    redoStack.push(JSON.stringify(buildState()));
+    const prev = JSON.parse(undoStack.pop());
+    restoreFromState(prev);
+  }
+
+  function performRedo() {
+    if (redoStack.length === 0) return;
+    undoStack.push(JSON.stringify(buildState()));
+    const next = JSON.parse(redoStack.pop());
+    restoreFromState(next);
+  }
+
+  function restoreFromState(state) {
+    emojiLayer.clearLayers();
+    drawLayer.clearLayers();
+    if (state.emojis) {
+      state.emojis.forEach(function(item) {
+        const icon = L.divIcon({
+          html: '<div class="emoji-marker-inner">' + item.e + '<span class="clear-emoji-btn">&times;</span></div>',
+          className: 'emoji-marker', iconSize: [36, 36], iconAnchor: [18, 18],
+        });
+        const m = L.marker([item.lat, item.lng], { icon, interactive: true }).addTo(emojiLayer);
+        m._emoji = item.e;
+        m.bindTooltip(item.e, { direction: 'top', offset: [0, -18], opacity: 0.85 });
+        m.on('click', removeEmojiMarker);
+      });
+    }
+    if (state.drawings) {
+      state.drawings.forEach(function(d) {
+        L.polyline(d.coords.map(function(c) { return [c.lat, c.lng]; }), {
+          color: d.color, weight: d.weight, opacity: 0.9, lineCap: 'round', lineJoin: 'round',
+        }).addTo(drawLayer);
+      });
+    }
+    if (state.view) {
+      map.setView([state.view.lat, state.view.lng], state.view.zoom, { animate: false });
+    }
+  }
 
   /* ── SUPABASE PERSISTENCE ─────────── */
   let saveTimeout;
@@ -523,6 +639,7 @@ html, body {
   function removeEmojiMarker(ev) {
     if (drawMode) return;
     L.DomEvent.stopPropagation(ev);
+    pushUndo();
     emojiLayer.removeLayer(this);
     saveMapState();
   }
@@ -1363,17 +1480,50 @@ html, body {
     if (!loaded) showStatus('Busca emojis 🔍 y selecciona uno para colocar');
   });
 
-  COLORS.forEach(c => {
+  // width buttons
+  const WIDTHS = [2, 4, 8];
+  const WIDTH_LABELS = ['│', '┃', '█'];
+  const widthRow = document.getElementById('width-row');
+  WIDTHS.forEach(function(w, i) {
+    const btn = document.createElement('button');
+    btn.className = 'width-btn';
+    btn.textContent = WIDTH_LABELS[i];
+    if (w === drawWidth) btn.classList.add('active');
+    btn.addEventListener('click', function() {
+      drawWidth = w;
+      document.querySelectorAll('.width-btn').forEach(function(b) { b.classList.remove('active'); });
+      btn.classList.add('active');
+    });
+    widthRow.appendChild(btn);
+  });
+
+  // color dots
+  COLORS.forEach(function(c) {
     const dot = document.createElement('div');
     dot.className = 'color-dot';
     dot.style.background = c;
     if (c === drawColor) dot.classList.add('selected');
-    dot.addEventListener('click', () => {
+    dot.addEventListener('click', function() {
       drawColor = c;
-      document.querySelectorAll('.color-dot').forEach(d => d.classList.remove('selected'));
+      document.querySelectorAll('.color-dot').forEach(function(d) { d.classList.remove('selected'); });
       dot.classList.add('selected');
     });
     colorsRow.appendChild(dot);
+  });
+
+  // undo/redo buttons
+  const btnUndo = document.getElementById('btn-undo');
+  const btnRedo = document.getElementById('btn-redo');
+  const drawOpts = document.getElementById('draw-options');
+
+  btnUndo.addEventListener('click', performUndo);
+  btnRedo.addEventListener('click', performRedo);
+
+  document.addEventListener('keydown', function(e) {
+    if (e.ctrlKey && e.key === 'z' && !e.shiftKey) { e.preventDefault(); performUndo(); return; }
+    if ((e.ctrlKey && e.key === 'y') || (e.ctrlKey && e.shiftKey && e.key === 'z') || (e.ctrlKey && e.key === 'Z')) {
+      e.preventDefault(); performRedo(); return;
+    }
   });
 
   /* ── STATUS MESSAGE ──────────────── */
@@ -1438,6 +1588,7 @@ html, body {
   map.on('click', function(e) {
     if (!selectedEmoji) return;
 
+    pushUndo();
     const icon = L.divIcon({
       html: '<div class="emoji-marker-inner">' + selectedEmoji + '<span class="clear-emoji-btn">&times;</span></div>',
       className: 'emoji-marker',
@@ -1462,11 +1613,13 @@ html, body {
         showStopButton(false);
       }
       btnDraw.classList.add('active');
+      drawOpts.classList.add('open');
       map.dragging.disable();
       map.getContainer().style.cursor = 'crosshair';
       showStatus('Modo dibujo: dibujá en el mapa');
     } else {
       btnDraw.classList.remove('active');
+      drawOpts.classList.remove('open');
       map.dragging.enable();
       map.getContainer().style.cursor = '';
       showStatus('Dibujo desactivado');
@@ -1483,11 +1636,12 @@ html, body {
     if (!drawMode) return;
     if (e.originalEvent && e.originalEvent.target && e.originalEvent.target.closest('#sidebar')) return;
     L.DomEvent.preventDefault(e);
+    pushUndo();
     isDrawing = true;
     const ll = getLatLng(e);
     currentLine = L.polyline([ll], {
       color: drawColor,
-      weight: 4,
+      weight: drawWidth,
       opacity: 0.9,
       lineCap: 'round',
       lineJoin: 'round',
@@ -1519,12 +1673,14 @@ html, body {
   map.on('touchend', endDrawing);
 
   btnClearDraw.addEventListener('click', function() {
+    pushUndo();
     drawLayer.clearLayers();
     saveMapState();
     showStatus('Todos los dibujos borrados');
   });
 
   btnClearEmoj.addEventListener('click', function() {
+    pushUndo();
     emojiLayer.clearLayers();
     saveMapState();
     showStatus('Todos los emojis borrados');
