@@ -802,12 +802,13 @@ html, body {
 
   /* ── TEXT-TO-EMOJI CONVERTER ─────── */
   function textToEmoji(str) {
+    var SEP = '\u200C';
     var result = '';
     for (var i = 0; i < str.length; i++) {
       var ch = str[i];
       var code = ch.charCodeAt(0);
-      if (code >= 65 && code <= 90) { result += String.fromCodePoint(0x1F1E6 + (code - 65)); }
-      else if (code >= 97 && code <= 122) { result += String.fromCodePoint(0x1F1E6 + (code - 97)); }
+      if (code >= 65 && code <= 90) { result += String.fromCodePoint(0x1F1E6 + (code - 65)) + SEP; }
+      else if (code >= 97 && code <= 122) { result += String.fromCodePoint(0x1F1E6 + (code - 97)) + SEP; }
       else if (code >= 48 && code <= 57) { result += String.fromCodePoint(0x30 + code) + '\uFE0F\u20E3'; }
       else if (ch === ' ') { result += '  '; }
       else if (ch === '!') { result += '\u2757'; }
