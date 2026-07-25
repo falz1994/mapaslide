@@ -702,11 +702,12 @@ html, body {
               features = features.filter(function(f) {
                 var name = f.properties && f.properties.name;
                 if (!name) return false;
-                var nl = name.toLowerCase();
+                var nl = name.toLowerCase().trim();
                 return PAISES.some(function(p) {
                   return p.pais.toLowerCase() === nl || altNames(p.pais).indexOf(nl) >= 0;
                 });
               });
+              console.log('Filtered political features:', features.length, 'names:', features.map(function(f){return f.properties&&f.properties.name;}));
             } else {
               features = full.features.filter(function(f) {
                 var code = (f.properties && (f.properties.ISO_A2 || f.properties.iso_a2 || f.properties.ADM0_A3)) || '';
@@ -738,16 +739,34 @@ html, body {
 
   function altNames(pais) {
     var map = {
-      'brasil':'brazil', 'méxico':'mexico', 'perú':'peru', 'panamá':'panama',
-      'república dominicana':'dominican rep.', 'república dominicana':'dominican republic',
-      'haití':'haiti', 'cuba':'cuba', 'venezuela':'venezuela', 'colombia':'colombia',
-      'chile':'chile', 'argentina':'argentina', 'bolivia':'bolivia', 'ecuador':'ecuador',
-      'uruguay':'uruguay', 'paraguay':'paraguay', 'guatemala':'guatemala',
-      'honduras':'honduras', 'nicaragua':'nicaragua', 'costa rica':'costa rica',
-      'el salvador':'el salvador', 'estados unidos':'united states',
+      'brasil': ['brazil'],
+      'méxico': ['mexico'],
+      'perú': ['peru'],
+      'panamá': ['panama'],
+      'república dominicana': ['dominican rep.', 'dominican republic', 'dominica'],
+      'haití': ['haiti'],
+      'cuba': ['cuba'],
+      'venezuela': ['venezuela'],
+      'colombia': ['colombia'],
+      'chile': ['chile'],
+      'argentina': ['argentina'],
+      'bolivia': ['bolivia'],
+      'ecuador': ['ecuador'],
+      'uruguay': ['uruguay'],
+      'paraguay': ['paraguay'],
+      'guatemala': ['guatemala'],
+      'honduras': ['honduras'],
+      'nicaragua': ['nicaragua'],
+      'costa rica': ['costa rica'],
+      'el salvador': ['el salvador'],
+      'estados unidos': ['united states', 'united states of america', 'usa'],
     };
     var n = pais.toLowerCase(), alts = [n];
-    if (map[n]) { alts.push(map[n]); }
+    if (map[n]) {
+      for (var i = 0; i < map[n].length; i++) {
+        alts.push(map[n][i]);
+      }
+    }
     return alts;
   }
 
