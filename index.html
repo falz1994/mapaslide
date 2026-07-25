@@ -1,0 +1,1411 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>Mapa Interactivo de Américas</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+html, body {
+  width: 100%; height: 100%;
+  overflow: hidden;
+  font-family: system-ui, sans-serif;
+  -webkit-tap-highlight-color: transparent;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+#app {
+  display: flex;
+  width: 100%; height: 100%;
+  position: relative;
+}
+
+#sidebar {
+  width: 72px;
+  min-width: 72px;
+  height: 100%;
+  background: #1e1e2e;
+  color: #fff;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 8px 0;
+  gap: 4px;
+  z-index: 9999;
+  overflow-y: auto;
+  overflow-x: hidden;
+  box-shadow: 2px 0 10px rgba(0,0,0,0.4);
+}
+
+.section-label {
+  font-size: 9px;
+  color: #888;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  margin: 8px 0 2px;
+  width: 100%;
+  text-align: center;
+}
+
+.emoji-btn {
+  width: 44px; height: 44px;
+  font-size: 24px;
+  background: #2a2a3e;
+  border: 2px solid transparent;
+  border-radius: 10px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.15s;
+  padding: 0;
+  line-height: 1;
+  position: relative;
+}
+
+.emoji-btn:active {
+  transform: scale(0.9);
+}
+
+.emoji-btn.selected {
+  border-color: #4fc3f7;
+  background: #1a3a4e;
+  box-shadow: 0 0 12px rgba(79,195,247,0.5);
+}
+
+.tool-btn {
+  width: 44px; height: 44px;
+  font-size: 22px;
+  background: #2a2a3e;
+  border: 2px solid transparent;
+  border-radius: 10px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.15s;
+  padding: 0;
+  line-height: 1;
+  color: #ccc;
+}
+
+.tool-btn:active {
+  transform: scale(0.9);
+}
+
+.tool-btn.active {
+  border-color: #ff7043;
+  background: #3e2a1e;
+  box-shadow: 0 0 12px rgba(255,112,67,0.5);
+}
+
+.color-dot {
+  width: 28px; height: 28px;
+  border-radius: 50%;
+  border: 2px solid #555;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.color-dot.selected {
+  border-color: #fff;
+  box-shadow: 0 0 8px rgba(255,255,255,0.6);
+  transform: scale(1.15);
+}
+
+.separator {
+  width: 40px;
+  height: 1px;
+  background: #3a3a4e;
+  margin: 6px 0;
+}
+
+#map-container {
+  flex: 1;
+  height: 100%;
+  position: relative;
+}
+
+#map {
+  width: 100%;
+  height: 100%;
+}
+
+.status-bar {
+  position: absolute;
+  bottom: 12px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: rgba(0,0,0,0.75);
+  color: #fff;
+  padding: 6px 14px;
+  border-radius: 20px;
+  font-size: 12px;
+  pointer-events: none;
+  z-index: 9999;
+  opacity: 0;
+  transition: opacity 0.3s;
+}
+
+.status-bar.visible {
+  opacity: 1;
+}
+
+.emoji-marker {
+  background: none !important;
+  border: none !important;
+}
+
+.emoji-marker-inner {
+  font-size: 28px;
+  text-align: center;
+  line-height: 36px;
+  filter: drop-shadow(1px 2px 3px rgba(0,0,0,0.5));
+  cursor: pointer;
+  transition: transform 0.15s;
+}
+
+.emoji-marker-inner:hover {
+  transform: scale(1.3);
+}
+
+.clear-emoji-btn {
+  position: absolute;
+  font-size: 14px;
+  color: #ff5252;
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 0.15s;
+  pointer-events: none;
+}
+
+.emoji-marker-inner:hover .clear-emoji-btn {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+/* ── STOP BUTTON ────────────── */
+#btn-stop {
+  display: none;
+  position: absolute;
+  bottom: 60px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: #ef4444;
+  color: #fff;
+  border: none;
+  border-radius: 24px;
+  padding: 10px 20px;
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+  z-index: 9998;
+  box-shadow: 0 4px 14px rgba(239,68,68,0.45);
+  pointer-events: auto;
+  white-space: nowrap;
+}
+
+#btn-stop.visible {
+  display: block;
+}
+
+#btn-stop:active {
+  background: #dc2626;
+  transform: translateX(-50%) scale(0.95);
+}
+
+/* ── SEARCH OVERLAY ────────────── */
+#search-overlay {
+  position: fixed;
+  top: 0; left: 0; right: 0; bottom: 0;
+  background: rgba(0,0,0,0.65);
+  z-index: 99999;
+  display: none;
+  align-items: flex-start;
+  justify-content: center;
+  padding-top: 60px;
+}
+
+#search-overlay.open {
+  display: flex;
+}
+
+#search-panel {
+  background: #1e1e2e;
+  border-radius: 16px;
+  width: 90%;
+  max-width: 420px;
+  max-height: 70vh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  box-shadow: 0 20px 50px rgba(0,0,0,0.5);
+}
+
+#search-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 16px;
+  border-bottom: 1px solid #333;
+}
+
+#search-input {
+  flex: 1;
+  background: #2a2a3e;
+  border: 1px solid #444;
+  border-radius: 10px;
+  color: #fff;
+  font-size: 16px;
+  padding: 10px 14px;
+  outline: none;
+}
+
+#search-input:focus {
+  border-color: #4fc3f7;
+}
+
+#search-close {
+  width: 36px; height: 36px;
+  font-size: 20px;
+  background: #333;
+  border: none;
+  border-radius: 50%;
+  color: #fff;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+#search-results {
+  flex: 1;
+  overflow-y: auto;
+  display: flex;
+  flex-wrap: wrap;
+  align-content: flex-start;
+  justify-content: center;
+  gap: 6px;
+  padding: 12px;
+}
+
+#search-results .emoji-btn {
+  width: 52px; height: 52px;
+  font-size: 28px;
+  border-radius: 12px;
+}
+
+#search-hint {
+  color: #888;
+  font-size: 13px;
+  text-align: center;
+  padding: 24px 16px;
+  width: 100%;
+}
+
+@media (max-width: 500px) {
+  #sidebar {
+    width: 56px;
+    min-width: 56px;
+  }
+  .emoji-btn, .tool-btn {
+    width: 38px; height: 38px;
+    font-size: 20px;
+    border-radius: 8px;
+  }
+  .tool-btn { font-size: 18px; }
+  .color-dot {
+    width: 22px; height: 22px;
+  }
+  #search-panel {
+    width: 94%;
+    max-height: 65vh;
+    border-radius: 14px;
+  }
+  #search-overlay { padding-top: 40px; }
+  #search-results .emoji-btn {
+    width: 44px; height: 44px;
+    font-size: 24px;
+  }
+}
+</style>
+</head>
+<body>
+<div id="app">
+
+  <div id="sidebar">
+    <button class="tool-btn" id="btn-search" title="Buscar emojis" style="font-size:20px;">🔍</button>
+    <span class="section-label" id="recent-label">Rápidos</span>
+    <div id="emoji-grid" style="display:flex;flex-wrap:wrap;justify-content:center;gap:3px;padding:0 2px;"></div>
+
+    <div class="separator"></div>
+    <span class="section-label">Dibujo</span>
+
+    <button class="tool-btn" id="btn-draw" title="Lápiz">✏️</button>
+
+    <div id="colors-row" style="display:flex;gap:4px;margin-top:4px;"></div>
+
+    <button class="tool-btn" id="btn-clear-draw" title="Borrar dibujos" style="font-size:16px;">🗑️</button>
+
+    <div class="separator"></div>
+
+    <button class="tool-btn" id="btn-clear-emojis" title="Borrar emojis del mapa" style="font-size:16px;">🧹</button>
+  </div>
+
+  <div id="map-container">
+    <div id="map"></div>
+    <div class="status-bar" id="status-bar"></div>
+    <button id="btn-stop">⏹ Detener</button>
+  </div>
+
+  <!-- SEARCH OVERLAY -->
+  <div id="search-overlay">
+    <div id="search-panel">
+      <div id="search-header">
+        <input type="text" id="search-input" placeholder="Buscar emoji (ej: casa, flecha, arbol...)" autocomplete="off" />
+        <button id="search-close">&times;</button>
+      </div>
+      <div id="search-results"></div>
+    </div>
+  </div>
+
+</div>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>
+(function() {
+  /* ── MAP ──────────────────────────── */
+  const map = L.map('map', {
+    center: [15, -85],
+    zoom: 3,
+    minZoom: 2,
+    maxZoom: 18,
+    zoomControl: false,
+    attributionControl: false,
+  });
+
+  L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
+    maxZoom: 19,
+    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OSM</a> &copy; <a href="https://carto.com/">CARTO</a>',
+  }).addTo(map);
+
+  L.control.zoom({ position: 'bottomright' }).addTo(map);
+  L.control.attribution({ position: 'bottomright', prefix: false }).addTo(map);
+
+  /* ── STATE ────────────────────────── */
+  let selectedEmoji = null;
+  let drawMode = false;
+  let drawColor = '#ff4444';
+  let isDrawing = false;
+  let currentLine = null;
+  const drawLayer = L.layerGroup().addTo(map);
+  const emojiLayer = L.layerGroup().addTo(map);
+
+  /* ── EMOJI DATABASE ──────────────── */
+  const EMOJI_DB = [
+    // smileys & emotion
+    { e:'😀', n:'cara feliz smile grin face sonrisa alegre' },
+    { e:'😃', n:'cara sonriente big eyes smile grin feliz' },
+    { e:'😄', n:'cara sonrisa ojos smile grin feliz alegre' },
+    { e:'😁', n:'cara dientes happy teeth grin sonrisa' },
+    { e:'😅', n:'cara nerviosa sweat smile cold sweat nervioso' },
+    { e:'😂', n:'cara risa llanto joy laugh tears risa gracioso' },
+    { e:'🤣', n:'rodando risa rolling floor laugh lol gracioso' },
+    { e:'😊', n:'sonrisa ruborizada blush smile carita feliz dulce' },
+    { e:'😇', n:'angel halo halo angel sonrisa bueno inocente' },
+    { e:'🙂', n:'cara sonrisa leve slight smile contento' },
+    { e:'🙃', n:'cara al reves upside down loco divertido' },
+    { e:'😉', n:'guiño wink ojo pestaña coqueto' },
+    { e:'😌', n:'aliviado relieved alivio paz contento' },
+    { e:'😍', n:'enamorado ojos corazon heart eyes enamorado amor' },
+    { e:'🥰', n:'cara corazones smiling hearts amor enamorado' },
+    { e:'😘', n:'beso kiss beso corazon amor' },
+    { e:'😗', n:'beso suave kissing face beso carita' },
+    { e:'😋', n:'lengua sabroso yummy sabroso lengua rico' },
+    { e:'😛', n:'lengua fuera tongue out gracioso broma' },
+    { e:'😝', n:'ojos cerrados lengua tongue eyes squint loco' },
+    { e:'😜', n:'guiño lengua winking tongue guiño loco gracioso' },
+    { e:'🤪', n:'cara loca crazy zany loco gracioso divertido' },
+    { e:'🤨', n:'cara ceja levantada raised eyebrow sospecha esceptico' },
+    { e:'🧐', n:'cara monóculo monocle elegante estudio' },
+    { e:'🤓', n:'nerd nerd gafas inteligente estudioso geek' },
+    { e:'😎', n:'gafas sol cool sunglasses face cool chulo' },
+    { e:'🤩', n:'ojos estrella star struck estrella impresionado wow' },
+    { e:'🥳', n:'fiesta party fiesta celebracion sombrero cumpleaños' },
+    { e:'😏', n:'cara astuta smirk pícaro astuto smug orgulloso' },
+    { e:'😒', n:'cara insatisfecha unamused aburrido' },
+    { e:'😞', n:'decepcionado disappointed triste desilusionado' },
+    { e:'😔', n:'pensativo pensive triste pensando melancolico' },
+    { e:'😟', n:'preocupado worried preocupacion ansioso' },
+    { e:'😕', n:'confundido confused confusion duda' },
+    { e:'😣', n:'perseverante persevering frustrado esfuerzo' },
+    { e:'😖', n:'angustiado confounded angustia molesto' },
+    { e:'😫', n:'cansado tired agotado exhausto fatiga' },
+    { e:'😩', n:'agotado weary exhausted agotado cansado' },
+    { e:'🥺', n:'ojos tiernos pleading puppy eyes suplica triste' },
+    { e:'😢', n:'llorando crying tear tristeza lagrima' },
+    { e:'😭', n:'llorando fuerte loudly crying lagrimas triste llanto' },
+    { e:'😤', n:'resoplido steaming nose triunfo enfadado' },
+    { e:'😠', n:'enfadado angry molesto furioso enojado' },
+    { e:'😡', n:'enfurecido pouting rage furia enojo rojo' },
+    { e:'🤬', n:'insultando cursing swearing maldiciendo enojado' },
+    { e:'🤯', n:'cabeza explotando exploding mind blown loco sorpresa' },
+    { e:'😳', n:'sonrojado flushed verguenza rubor sorprendido' },
+    { e:'🥵', n:'calor hot calor acalorado sudor verano' },
+    { e:'🥶', n:'congelado cold congelado helado frio frio frio' },
+    { e:'😱', n:'grito terror scream fear terror miedo sorpresa' },
+    { e:'😨', n:'asustado fearful scared asustado miedo' },
+    { e:'😰', n:'ansioso sudor anxious sweat ansioso nervioso' },
+    { e:'😥', n:'aliviado triste sad relieved alivio triste' },
+    { e:'😓', n:'sudor frio cold sweat esfuerzo cansancio' },
+    { e:'🤗', n:'abrazo hugging abrazo carita cariñoso' },
+    { e:'🤔', n:'pensando thinking pensando mano barbilla duda' },
+    { e:'🤭', n:'mano boca hand mouth risa secreto sorpresa' },
+    { e:'🤫', n:'silencio shushing silencio callar secreto' },
+    { e:'🤥', n:'mentiroso lying mentira nariz pinocho' },
+    { e:'😶', n:'sin boca no mouth silencio mudo callado' },
+    { e:'😐', n:'neutral neutral poker face serio' },
+    { e:'😑', n:'inexpresivo expressionless inexpresivo serio' },
+    { e:'😬', n:'mueca grimace incomodo nervioso dientes' },
+    { e:'🙄', n:'ojos en blanco roll eyes eyeroll giro fastidio' },
+    { e:'😯', n:'callado hushed sorpresa callado sorprendido' },
+    { e:'😦', n:'boca abierta frowned boca sorpresa triste' },
+    { e:'😧', n:'angustiado anguished sorpresa angustia' },
+    { e:'😮', n:'boca abierta open mouth sorpresa wow impresionado' },
+    { e:'😲', n:'asombrado astonished asombrado sorprendido wow' },
+    { e:'🥱', n:'bostezo yawning bostezo sueño cansado' },
+    { e:'😴', n:'durmiendo sleeping sueño dormido zzz' },
+    { e:'🤤', n:'babeando drooling baba hambre deseando' },
+    { e:'😪', n:'somnoliento sleepy sueño cansancio dormir' },
+    { e:'😵', n:'mareado dizzy mareo aturdido knock out' },
+    { e:'🤐', n:'boca cremallera zipper mouth secreto callado' },
+    { e:'🥴', n:'mareado woozy borracho mareado grogui' },
+    { e:'🤢', n:'nauseas nauseated nauseas vomito malestar' },
+    { e:'🤮', n:'vomitando vomiting vomito vomitar malo' },
+    { e:'🤧', n:'estornudando sneezing estornudo gripe resfriado' },
+    { e:'😷', n:'mascarilla mask cubrebocas enfermedad proteccion' },
+    { e:'🤒', n:'termometro sick fever termometro enfermo fiebre' },
+    { e:'🤕', n:'vendado head bandage vendaje herido lesión' },
+    { e:'🤑', n:'cara dinero money mouth rico cara dinero' },
+    { e:'🤠', n:'vaquero cowboy sombrero western vaquero' },
+
+    // hands & body
+    { e:'👋', n:'saludo waving mano hola adios saludo' },
+    { e:'🤚', n:'dorso mano raised back mano palma' },
+    { e:'🖐️', n:'mano abierta hand palm fingers mano cinco' },
+    { e:'✋', n:'mano levantada raised hand stop alto mano' },
+    { e:'🖖', n:'saludo vulcano spock vulcan star trek saludo' },
+    { e:'👌', n:'ok mano ok hand señal ok perfecto bien' },
+    { e:'🤌', n:'mano pellizco pinched fingers italiano duda' },
+    { e:'🤏', n:'pellizco pinching poquito pequeño poquito' },
+    { e:'✌️', n:'paz victory paz victoria signo v dos' },
+    { e:'🤞', n:'dedos cruzados crossed fingers cruzados suerte' },
+    { e:'🤟', n:'amor love you gesture amor señal rock' },
+    { e:'🤘', n:'cuernos rock horns rock metal musica mano' },
+    { e:'🤙', n:'llamame call me shaka surf telefono' },
+    { e:'👈', n:'indice izquierda point left dedo señalando izquierda' },
+    { e:'👉', n:'indice derecha point right dedo señalando derecha' },
+    { e:'👆', n:'indice arriba point up dedo arriba' },
+    { e:'🖕', n:'dedo medio middle finger groseria insulto fuck' },
+    { e:'👇', n:'indice abajo point down dedo abajo' },
+    { e:'☝️', n:'dedo arriba index up dedo señal uno' },
+    { e:'👍', n:'pulgar arriba thumbs up like ok bien bueno' },
+    { e:'👎', n:'pulgar abajo thumbs down dislike mal no negativo' },
+    { e:'✊', n:'puño cerrado fist raised puño fuerza poder' },
+    { e:'👊', n:'puño oncoming fist puño golpe pelea bro' },
+    { e:'🤛', n:'puño izquierda left fist puño izquierdo' },
+    { e:'🤜', n:'puño derecha right fist puño derecho' },
+    { e:'👏', n:'aplauso clap aplaudir ovacion palmas' },
+    { e:'🙌', n:'manos celebrando raising hands celebracion festejo' },
+    { e:'👐', n:'manos abiertas open hands abrazo bienvenida' },
+    { e:'🤲', n:'palmas juntas palms up rezar ofrecer' },
+    { e:'🤝', n:'apreton manos handshake acuerdo saludo trato' },
+    { e:'🙏', n:'rezar folded hands gracias rezar orar oracion' },
+    { e:'💪', n:'biceps flexed muscle fuerza fuerte biceps musculo' },
+    { e:'🦾', n:'brazo robotico mechanical arm robot brazo protesis' },
+    { e:'🦿', n:'pierna robotica mechanical leg pierna protesis robot' },
+    { e:'🦶', n:'pie foot pie pata pisada' },
+    { e:'👂', n:'oreja ear oreja oir oido escuchar' },
+    { e:'👃', n:'nariz nose nariz olor oler' },
+    { e:'🧠', n:'cerebro brain cerebro mente inteligencia' },
+    { e:'🫀', n:'corazon anatomico anatomical heart corazon organo' },
+    { e:'🫁', n:'pulmones lungs pulmon respiracion organo' },
+    { e:'🦷', n:'diente tooth diente muela dental' },
+    { e:'🦴', n:'hueso bone hueso esqueleto' },
+    { e:'👀', n:'ojos eyes ojitos mirar vista observando' },
+    { e:'👁️', n:'ojo eye ojo mirar vista' },
+    { e:'👅', n:'lengua tongue lengua gusto saborear' },
+    { e:'👄', n:'boca mouth labios boca beso hablar' },
+
+    // people roles
+    { e:'👶', n:'bebe baby bebe niño pequeño infante' },
+    { e:'👧', n:'niña girl pequeña niña chica infante' },
+    { e:'👦', n:'niño boy pequeño niño chico infante' },
+    { e:'👩', n:'mujer woman mujer adulto femenino' },
+    { e:'👨', n:'hombre man hombre adulto masculino' },
+    { e:'👵', n:'abuela old woman anciana abuela mayor vieja' },
+    { e:'👴', n:'abuelo old man anciano abuelo mayor viejo' },
+    { e:'👲', n:'gorro chino chinese hat hombre chino' },
+    { e:'👮', n:'policia police officer policia agente ley' },
+    { e:'👷', n:'constructor construction worker obrero obra casco' },
+    { e:'💂', n:'guardia guard britanico guardia reina' },
+    { e:'🕵️', n:'detective detective agente investigador investigacion' },
+    { e:'🦸', n:'superheroe superhero super heroe heroe capa' },
+    { e:'🦹', n:'supervillano supervillain villano malvado villano' },
+    { e:'🧙', n:'mago mago wizard mage brujo hechicero magia' },
+    { e:'🧚', n:'hada fairy hada hada magia alada' },
+    { e:'🧛', n:'vampiro vampire vampiro dracula colmillos' },
+    { e:'🧜', n:'sirena mermaid sirena triton mar' },
+    { e:'🧝', n:'elfo elf elfo elfo magico fantasia' },
+    { e:'🧞', n:'genio genie genio lampara magica' },
+    { e:'🧟', n:'zombie zombie zombi muerto viviente' },
+    { e:'🤴', n:'principe prince principe rey corona' },
+    { e:'👸', n:'princesa princess princesa reina corona' },
+    { e:'💆', n:'masaje massage masaje cara relajacion spa' },
+    { e:'💇', n:'peluqueria haircut peluquero corte pelo' },
+    { e:'🚶', n:'caminando pedestrian walking caminando peatón persona' },
+    { e:'🏃', n:'corriendo runner running correr corriendo persona' },
+    { e:'💃', n:'bailando dancing bailando bailarina salsa fiesta' },
+    { e:'🕺', n:'bailando hombre man dancing bailando disco fiesta' },
+    { e:'🧑‍🎓', n:'estudiante student estudiante alumno graduado' },
+    { e:'👩‍⚕️', n:'doctora doctor medico health doctora medica' },
+    { e:'👨‍⚕️', n:'doctor doctor medico health medico doctor' },
+    { e:'👩‍🏫', n:'profesora teacher profesora maestra educacion' },
+    { e:'👨‍🏫', n:'profesor teacher profesor maestro educacion' },
+    { e:'👩‍🍳', n:'cocinera cook chef cocinera chef comida' },
+    { e:'👨‍🍳', n:'cocinero cook chef cocinero chef comida' },
+    { e:'👩‍💻', n:'programadora programmer coder tech programadora computadora' },
+    { e:'👨‍💻', n:'programador programmer coder tech programador computadora' },
+    { e:'👩‍🎨', n:'artista artist artista pintora arte creativa' },
+    { e:'👨‍🎨', n:'artista artist artista pintor arte creativo' },
+    { e:'👩‍🚒', n:'bombera firefighter bombera bomberos fuego emergencia' },
+    { e:'👨‍🚒', n:'bombero firefighter bombero bomberos fuego emergencia' },
+    { e:'👩‍✈️', n:'pilota pilot pilota avion aviadora capitan' },
+    { e:'👨‍✈️', n:'piloto pilot piloto avion aviador capitan' },
+    { e:'👩‍🚀', n:'astronauta woman astronaut astronauta mujer espacio cohete' },
+    { e:'👨‍🚀', n:'astronauta man astronaut astronauta hombre espacio cohete' },
+    { e:'👩‍🔬', n:'cientifica scientist cientifica ciencia laboratorio bata' },
+    { e:'👨‍🔬', n:'cientifico scientist cientifico ciencia laboratorio bata' },
+    { e:'👩‍🔧', n:'mecanica mechanic mecanica tecnica reparacion herramienta' },
+    { e:'👨‍🔧', n:'mecanico mechanic mecanico tecnico reparacion herramienta' },
+
+    // robots & tech
+    { e:'🤖', n:'robot robot android bot ia inteligencia artificial maquina futuro' },
+    { e:'👾', n:'alien monstruo space invader alien pixel juego videojuego marciano' },
+    { e:'👽', n:'extraterrestre alien alien extraterrestre ovni espacio marciano verde' },
+    { e:'🛸', n:'ovni ufo flying saucer platillo volador alien espacio nave extraterrestre' },
+    { e:'🦾', n:'brazo robotico mechanical arm robot brazo protesis' },
+    { e:'🦿', n:'pierna robotica mechanical leg pierna protesis' },
+
+    // animals
+    { e:'🐶', n:'perro dog mascota animal pet perrito canino' },
+    { e:'🐱', n:'gato cat mascota animal pet gatito felino' },
+    { e:'🐭', n:'raton mouse animal raton roedor' },
+    { e:'🐹', n:'hamster hamster animal pet mascota roedor' },
+    { e:'🐰', n:'conejo rabbit bunny animal orejas' },
+    { e:'🦊', n:'zorro fox zorro animal astuto' },
+    { e:'🐻', n:'oso bear animal oso salvaje peluche' },
+    { e:'🐼', n:'panda panda animal oso bambu china' },
+    { e:'🐨', n:'koala koala animal australia oso' },
+    { e:'🐯', n:'tigre tiger animal felino rayas' },
+    { e:'🦁', n:'leon lion animal felino leon rey melena' },
+    { e:'🐮', n:'vaca cow animal vaca granja leche' },
+    { e:'🐷', n:'cerdo pig animal granja puerco chancho cochino' },
+    { e:'🐸', n:'rana frog animal anfibio sapo' },
+    { e:'🐵', n:'mono monkey animal primate chango simio' },
+    { e:'🐔', n:'gallina chicken pollo ave granja' },
+    { e:'🐧', n:'pinguino penguin animal ave polo frio antartida' },
+    { e:'🐦', n:'pajaro bird animal ave volar plumas' },
+    { e:'🐤', n:'pollito baby chick pollito ave amarillo' },
+    { e:'🦅', n:'aguila eagle animal ave aguila cazadora' },
+    { e:'🦉', n:'buho owl animal ave nocturno sabio' },
+    { e:'🦇', n:'murcielago bat animal volador vampiro' },
+    { e:'🐺', n:'lobo wolf animal lobo salvaje aullido' },
+    { e:'🐗', n:'jabali boar animal jabali salvaje colmillos' },
+    { e:'🐴', n:'caballo horse animal caballo equino' },
+    { e:'🦄', n:'unicornio unicorn caballo magico unicornio mitico cuerno' },
+    { e:'🐝', n:'abeja bee insect animal miel colmena' },
+    { e:'🐛', n:'oruga caterpillar insect bug bicho gusano' },
+    { e:'🦋', n:'mariposa butterfly insect alado alas' },
+    { e:'🐌', n:'caracol snail animal lento baba' },
+    { e:'🐞', n:'mariquita ladybug insect animal puntos' },
+    { e:'🐜', n:'hormiga ant insect animal pequeña trabajadora' },
+    { e:'🦟', n:'mosquito mosquito insect zancudo pica' },
+    { e:'🦗', n:'grillo cricket insect grillo cricri' },
+    { e:'🕷️', n:'araña spider insect arana patas ocho' },
+    { e:'🕸️', n:'telaraña spiderweb cobweb araña tela' },
+    { e:'🦂', n:'escorpion scorpion insect escorpion veneno' },
+    { e:'🐉', n:'dragon dragon mitologia fuego leyenda' },
+    { e:'🐲', n:'dragon verde dragon verde mitologia fuego' },
+    { e:'🦖', n:'tiranosaurio trex dinosaur rex fosil' },
+    { e:'🦕', n:'sauropodo dinosaur cuello largo fosil' },
+    { e:'🐙', n:'pulpo octopus animal marino tentaculos ocho' },
+    { e:'🦑', n:'calamar squid animal marino tentaculos' },
+    { e:'🦐', n:'camaron shrimp camaron marisco animal marino' },
+    { e:'🦞', n:'langosta lobster langosta marisco animal marino' },
+    { e:'🦀', n:'cangrejo crab cangrejo animal marino pinzas' },
+    { e:'🦈', n:'tiburon shark animal marino peligro aleta' },
+    { e:'🐋', n:'ballena whale animal marino grande oceano' },
+    { e:'🐬', n:'delfin dolphin animal marino inteligente' },
+    { e:'🐟', n:'pez fish animal marino pez nadar' },
+    { e:'🐠', n:'pez tropical fish tropical animal marino' },
+    { e:'🐡', n:'pez globo blowfish pez hinchable veneno' },
+    { e:'🐊', n:'cocodrilo crocodile animal reptil cocodrilo' },
+    { e:'🐢', n:'tortuga turtle animal reptil tortuga lenta caparazon' },
+    { e:'🦎', n:'lagartija lizard animal reptil lagartija' },
+    { e:'🐍', n:'serpiente snake animal reptil serpiente vibora veneno' },
+    { e:'🦕', n:'dinosaurio cuello largo dinosaur sauropod fosil' },
+    { e:'🦖', n:'t rex dinosaur tiranosaurio carnivoro' },
+    { e:'🦣', n:'mamut mammoth animal extinto elefante prehistorico' },
+    { e:'🐘', n:'elefante elephant animal grande trompa' },
+    { e:'🦏', n:'rinoceronte rhino rhinoceros animal cuerno salvaje' },
+    { e:'🦛', n:'hipopotamo hippo hippopotamus animal hipopotamo agua' },
+    { e:'🐪', n:'camello camel animal desierto joroba' },
+    { e:'🦒', n:'jirafa giraffe animal cuello largo alto' },
+    { e:'🦘', n:'canguro kangaroo animal australia marsupial salta' },
+    { e:'🦬', n:'bisonte bison animal bisonte salvaje' },
+    { e:'🐃', n:'bufalo water buffalo bufalo animal cuernos' },
+    { e:'🐏', n:'carnero ram carnero oveja cuernos macho' },
+    { e:'🐑', n:'oveja sheep oveja animal lana granja' },
+    { e:'🐐', n:'cabra goat cabra animal cuernos granja' },
+    { e:'🦌', n:'venado deer ciervo venado animal astas' },
+
+    // plants & nature
+    { e:'🌲', n:'arbol pino tree pine evergreen siempreverde' },
+    { e:'🌳', n:'arbol hoja tree deciduous caduco' },
+    { e:'🌴', n:'palmera palm tree palma tropical playa' },
+    { e:'🌵', n:'cactus desierto desert planta espinas' },
+    { e:'🎄', n:'arbol navidad christmas tree navidad navideño decoracion' },
+    { e:'🌱', n:'brote seedling brote planta crecer germinar' },
+    { e:'🪴', n:'maceta potted plant maceta planta hogar' },
+    { e:'🍀', n:'trebol cuatro hojas four leaf clover trebol suerte' },
+    { e:'☘️', n:'trebol shamrock trebol irlanda suerte' },
+    { e:'🍃', n:'hoja viento leaf wind hojas flotando otoño' },
+    { e:'🍂', n:'hojas caidas fallen leaves otoño autumn hoja marron' },
+    { e:'🍁', n:'hoja maple maple canada otoño roja' },
+    { e:'🌾', n:'arroz sheaf rice arroz trigo cereal' },
+    { e:'🌸', n:'cerezo sakura cherry blossom flor primavera japon' },
+    { e:'🌻', n:'girasol sunflower sol flor girasol amarillo' },
+    { e:'🌹', n:'rosa rose flor flower rojo rosa amor' },
+    { e:'🌷', n:'tulipan tulip flor primavera holanda' },
+    { e:'🌼', n:'flor blossom margarita flower flor primavera' },
+    { e:'💐', n:'ramo bouquet flores flowers ramo regalo' },
+    { e:'🏵️', n:'roseta rosette flor decorativa' },
+    { e:'🪷', n:'flor loto lotus flor loto espiritual pureza' },
+    { e:'🌺', n:'hibisco hibiscus flor tropical hawaiana' },
+    { e:'🪹', n:'nido nido nest nido pajaro' },
+
+    // weather & sky
+    { e:'☀️', n:'sol sun sol brillante clima caliente dia' },
+    { e:'🌤️', n:'sol nube sun cloud sol parcial nublado' },
+    { e:'⛅', n:'nube sol cloud sun parcialmente nublado clima' },
+    { e:'🌥️', n:'sol nube grande sun behind cloud clima nublado' },
+    { e:'☁️', n:'nube cloud nube nublado clima cielo' },
+    { e:'🌧️', n:'lluvia rain lluvia clima agua tormenta' },
+    { e:'⛈️', n:'tormenta thunderstorm tormenta rayos truenos lluvia' },
+    { e:'🌩️', n:'rayo nube lightning cloud tormenta rayo electrico' },
+    { e:'⚡', n:'rayo lightning high voltage electrico chispa peligro energia' },
+    { e:'❄️', n:'nieve copo snow cold frio frozen invierno hielo' },
+    { e:'☃️', n:'muñeco nieve snowman muñeco nieve invierno' },
+    { e:'⛄', n:'muñeco nieve sin nieve snowman nieve invierno frio' },
+    { e:'🌨️', n:'nieve cayendo snow nieve nevando clima' },
+    { e:'🌪️', n:'tornado tornado huracan viento clima desastre' },
+    { e:'🌀', n:'espiral spiral tornado huracan ciclon tifon viento' },
+    { e:'🌈', n:'arcoiris rainbow colores arcoiris cielo' },
+    { e:'🌊', n:'ola mar water wave oceano agua mar ola tsunami' },
+    { e:'💧', n:'gota agua water drop lluvia gota agua liquido' },
+    { e:'💦', n:'sudor sweat agua salpicadura gotas' },
+    { e:'🫧', n:'burbujas bubbles burbujas agua jabon' },
+    { e:'🔥', n:'fuego fire llama caliente quemar incendio' },
+    { e:'🌟', n:'estrella brillante glowing star brillo magia destello' },
+    { e:'⭐', n:'estrella star puntuacion favorito cinco' },
+    { e:'🌙', n:'luna creciente crescent moon luna noche creciente' },
+    { e:'🌑', n:'luna nueva new moon luna nueva oscura' },
+    { e:'🌕', n:'luna llena full moon luna llena brillante noche' },
+    { e:'🌚', n:'luna negra new moon face luna oscura noche' },
+    { e:'🌝', n:'luna llena cara full moon face luna llena noche' },
+    { e:'🌞', n:'sol cara sun face sol cara caliente' },
+
+    // places & buildings
+    { e:'🏠', n:'casa house hogar vivienda domicilio hogar dulce' },
+    { e:'🏡', n:'casa jardin house garden hogar cesped' },
+    { e:'🏘️', n:'casas houses viviendas barrio vecindario' },
+    { e:'🏚️', n:'casa abandonada abandoned house ruin ruinosa vieja' },
+    { e:'🏗️', n:'construccion construction obra grua edificio' },
+    { e:'🏢', n:'edificio oficina office building empresa corporativo alto' },
+    { e:'🏥', n:'hospital doctor medico health salud clinica emergencia cruz roja' },
+    { e:'🏦', n:'banco bank dinero money finanzas sede' },
+    { e:'🏪', n:'tienda store shop comercio local convenience 24h' },
+    { e:'🏫', n:'escuela school colegio instituto educacion universidad' },
+    { e:'🏩', n:'hotel love motel amor pareja' },
+    { e:'🏨', n:'hotel building hospedaje alojamiento viaje' },
+    { e:'🏬', n:'centro comercial mall shopping departamental retail' },
+    { e:'🏣', n:'oficina postal japonesa post office correo japon' },
+    { e:'🏤', n:'oficina postal post office correo postal europeo' },
+    { e:'🏛️', n:'monumento clasico classic monument museum museo gobierno' },
+    { e:'🕌', n:'mezquita mosque religion islam arabe' },
+    { e:'🕍', n:'sinagoga synagogue religion judio templo' },
+    { e:'⛪', n:'iglesia church religion cristiano templo cruz' },
+    { e:'⛩️', n:'templo japones shinto shrine japon religion' },
+    { e:'🕋', n:'kaaba mecca islam arabe sagrado' },
+    { e:'🏰', n:'castillo castle medieval europeo fortaleza rey' },
+    { e:'🏯', n:'castillo japones japanese castle japon fortaleza samurai' },
+    { e:'🗼', n:'torre tokyo tower tokyo japon torre' },
+    { e:'🗽', n:'estatua libertad statue liberty ny nueva york monumento' },
+    { e:'🗿', n:'moai estatua piedra easter island pascua chile' },
+    { e:'🎪', n:'circo circus carpa espectaculo show' },
+    { e:'🎭', n:'teatro theatre artes performing mascaras drama' },
+    { e:'🎢', n:'montaña rusa roller coaster parque atraccion diversion' },
+    { e:'🎡', n:'noria ferris wheel rueda parque atraccion' },
+    { e:'🏟️', n:'estadio stadium deporte arena campo futbol' },
+    { e:'🏝️', n:'isla island desierta desert beach playa tropical' },
+    { e:'🏖️', n:'playa beach umbrella sombrilla arena mar verano' },
+    { e:'🏕️', n:'camping campamento tienda campo naturaleza' },
+    { e:'⛺', n:'tienda campaña tent camping carpa acampar' },
+    { e:'🏔️', n:'montaña nieve mountain snow pico cumbre alpes' },
+    { e:'⛰️', n:'montaña mountain colina cerro monte cima' },
+    { e:'🗻', n:'monte fuji fuji mountain japon volcan' },
+    { e:'🌋', n:'volcan volcano erupcion lava magma ceniza' },
+    { e:'🏜️', n:'desierto desert arena seco arido calor' },
+    { e:'🌍', n:'globo africa globe africa europa mundo planeta' },
+    { e:'🌎', n:'globo america globe americas mundo planeta america' },
+    { e:'🌏', n:'globo asia globe asia australia mundo planeta' },
+    { e:'🗺️', n:'mapa mundo world map mapa mundo cartografia' },
+    { e:'🧭', n:'brujula compass brujula norte orientacion navegacion' },
+
+    // transport
+    { e:'🚗', n:'coche car auto vehicle sedan rojo transporte' },
+    { e:'🚙', n:'camioneta suv vehicle auto 4x4 todoterreno' },
+    { e:'🚌', n:'autobus bus transport bus publico transporte' },
+    { e:'🚐', n:'minibus minivan van transport furgoneta' },
+    { e:'🚑', n:'ambulancia ambulance emergencia medico hospital' },
+    { e:'🚒', n:'bomberos fire truck camion bomberos emergencia fuego' },
+    { e:'🚓', n:'policia police car patrulla policial ley' },
+    { e:'🚕', n:'taxi cab taxi amarillo transporte' },
+    { e:'🏍️', n:'moto motorcycle motocicleta moto motocicleta' },
+    { e:'🛵', n:'scooter vespa moto motorino scooter delivery' },
+    { e:'🚲', n:'bicicleta bicycle bike cicla bici ciclismo' },
+    { e:'🛴', n:'patinete scooter kick patinete monopatin' },
+    { e:'🛹', n:'skate skateboard skate patineta tabla' },
+    { e:'✈️', n:'avion airplane plane aeropuerto vuelo viaje' },
+    { e:'🛩️', n:'avioneta small plane avion pequeño privado' },
+    { e:'🚁', n:'helicoptero helicopter chopper helicoptero vuelo' },
+    { e:'🚀', n:'cohete rocket space espacial despegue lanzamiento' },
+    { e:'🛸', n:'ovni ufo flying saucer platillo volador alien' },
+    { e:'⛵', n:'velero sailboat barco vela navegacion mar' },
+    { e:'🚢', n:'barco ship barco grande crucero mar oceano' },
+    { e:'🛶', n:'canoa canoe remo kayak agua lago' },
+    { e:'🚤', n:'lancha speedboat boat motor rapido agua' },
+    { e:'🚉', n:'estacion tren station train metro ferrocarril' },
+    { e:'🚂', n:'tren vapor steam train locomotive vapor antiguo' },
+    { e:'🚆', n:'tren train rail tren bala bullet train' },
+    { e:'🚇', n:'metro subway metro underground subterraneo tren' },
+    { e:'🚊', n:'tranvia tram tranvia tren ligero transporte' },
+    { e:'🛤️', n:'vias tren railroad railway tracks vias tren' },
+    { e:'🛣️', n:'autopista highway road carretera autopista via' },
+    { e:'⛽', n:'gasolinera fuel pump gasolina gas estacion combustible' },
+    { e:'🚏', n:'parada bus bus stop parada autobus paradero transporte' },
+    { e:'🚦', n:'semaforo vertical traffic light semaforo vertical señal' },
+    { e:'🚥', n:'semaforo horizontal traffic light semaforo horizontal señal' },
+
+    // food & drink
+    { e:'🍽️', n:'plato tenedor plate fork cubiertos restaurante cena comida' },
+    { e:'🍔', n:'hamburguesa hamburger burger comida rapida fast food' },
+    { e:'🍕', n:'pizza pizza food comida italiana italiana queso' },
+    { e:'🍟', n:'papas fritas fries french potato comida fritas' },
+    { e:'🌭', n:'hot dog hotdog hotdog perrito caliente comida' },
+    { e:'🌮', n:'taco taco mexicano comida food mexico' },
+    { e:'🌯', n:'burrito burrito mexicano comida food mexico wrap' },
+    { e:'🫔', n:'tamal tamale tamal mexicano comida food' },
+    { e:'🥪', n:'sandwich sandwich emparedado bocadillo comida pan' },
+    { e:'🥙', n:'wrap kebab stuffed pita kebab gyro comida' },
+    { e:'🥗', n:'ensalada salad ensalada verde vegetal comida saludable' },
+    { e:'🍲', n:'olla stew pot sopa olla guiso comida' },
+    { e:'🍛', n:'curry curry rice arroz comida indio especias' },
+    { e:'🍜', n:'ramen ramen fideos sopa japonesa noodles' },
+    { e:'🍝', n:'spaghetti spaghetti pasta espagueti italiano comida' },
+    { e:'🍣', n:'sushi sushi japones pescado arroz food japon' },
+    { e:'🍤', n:'camaron frito fried shrimp tempura camaron frito' },
+    { e:'🥟', n:'empanada dumpling empanada dimsum dumpling masa' },
+    { e:'🥠', n:'galleta fortuna fortune cookie galleta fortune china' },
+    { e:'🍚', n:'arroz rice arroz cocido comida blanco' },
+    { e:'🍙', n:'onigiri rice ball onigiri bola arroz japon algas' },
+    { e:'🍘', n:'galleta arroz rice cracker galleta arroz senbei' },
+    { e:'🍩', n:'dona donut doughnut dulce pastel rosquilla' },
+    { e:'🍪', n:'galleta cookie galleta chips dulce chocolate' },
+    { e:'🎂', n:'pastel cake cumpleaños torta celebración fiesta cumple' },
+    { e:'🍰', n:'trozo pastel cake slice pastry pastel dulce trozo' },
+    { e:'🧁', n:'cupcake cupcake magdalena muffin pastelito dulce' },
+    { e:'🥧', n:'pie pay tarta pastel dulce relleno' },
+    { e:'🍫', n:'chocolate chocolate bar barra chocolate dulce' },
+    { e:'🍬', n:'caramelo candy caramelo dulce golosina confite' },
+    { e:'🍭', n:'paleta lollipop pilón paleta caramelo dulce' },
+    { e:'🍿', n:'palomitas popcorn popcorn palomitas maiz cine' },
+    { e:'🧂', n:'sal salt salero sal condimento' },
+    { e:'🥜', n:'cacahuetes peanuts cacahuates mani fruto seco' },
+    { e:'🍯', n:'miel honey miel dulce abeja panal' },
+    { e:'🥛', n:'leche milk leche vaso bebida blanco' },
+    { e:'🍞', n:'pan bread pan comida alimento' },
+    { e:'🥐', n:'croissant croissant croissant pan frances desayuno' },
+    { e:'🥖', n:'baguette baguette baguette pan frances barra' },
+    { e:'🥨', n:'pretzel pretzel pretzel pan salado nudo' },
+    { e:'🥯', n:'bagel bagel bagel pan circular desayuno' },
+    { e:'🥞', n:'panqueques pancakes panqueques hotcakes desayuno dulce' },
+    { e:'🧇', n:'waffle waffle waffle gofre desayuno dulce' },
+    { e:'🧀', n:'queso cheese queso lacteo comida' },
+    { e:'🥚', n:'huevo egg huevo food comida desayuno' },
+    { e:'🍳', n:'huevo frito fried egg cooking sarten huevo frito desayuno' },
+    { e:'🥓', n:'tocino bacon tocino bacon panceta carne desayuno' },
+    { e:'🥩', n:'carne meat steak food comida carne filete res' },
+    { e:'🍗', n:'pollo chicken drumstick pierna pollo food comida' },
+    { e:'🍖', n:'carne hueso meat bone carne costilla hueso' },
+    { e:'🍎', n:'manzana apple fruit fruta roja rojo sano' },
+    { e:'🍊', n:'naranja orange fruit fruta citrico naranja jugo' },
+    { e:'🍋', n:'limon lemon fruit fruta acido amarillo citrico' },
+    { e:'🍌', n:'banana platano banana fruit fruta amarillo' },
+    { e:'🍉', n:'sandia watermelon fruta fruit sandia verano' },
+    { e:'🍇', n:'uvas grapes fruit fruta racimo vino morado' },
+    { e:'🍓', n:'fresa strawberry fruit fruta roja baya' },
+    { e:'🍒', n:'cerezas cherries fruit fruta cereza roja' },
+    { e:'🍑', n:'durazno peach fruit fruta durazno melocoton' },
+    { e:'🍐', n:'pera pear fruta pera fruit verde' },
+    { e:'🥝', n:'kiwi kiwi fruit fruta kiwi verde marron' },
+    { e:'🥭', n:'mango mango fruta fruit mango tropical' },
+    { e:'🍍', n:'piña pineapple fruta fruit piña tropical' },
+    { e:'🥕', n:'zanahoria carrot vegetable vegetal zanahoria naranja' },
+    { e:'🌽', n:'maiz corn elote choclo mazorca maiz amarillo' },
+    { e:'🧅', n:'cebolla onion vegetal cebolla capas' },
+    { e:'🧄', n:'ajo garlic ajo vegetal condimento' },
+    { e:'🥑', n:'aguacate avocado palta fruit verde aguacate' },
+    { e:'🍆', n:'berenjena eggplant berenjena vegetal morado' },
+    { e:'🥔', n:'papa potato patata papa vegetal tuberculo' },
+    { e:'🥦', n:'brocoli broccoli brocoli vegetal verde arbol' },
+    { e:'🥬', n:'verdura leafy green verdura lechuga hoja verde' },
+    { e:'🥒', n:'pepino cucumber pepino vegetal verde' },
+    { e:'🌶️', n:'chile hot pepper chile picante aji rojo' },
+    { e:'🫑', n:'pimiento bell pepper pimiento morron chile dulce' },
+    { e:'🍄', n:'hongo mushroom hongo seta champinon fungi' },
+    { e:'☕', n:'cafe coffee te bebida caliente desayuno cafe' },
+    { e:'🍵', n:'te verde tea te verde japon matcha bebida' },
+    { e:'🍶', n:'sake sake sake japon alcohol botella' },
+    { e:'🍾', n:'champagne champagne champan champaña botella celebracion' },
+    { e:'🍷', n:'vino wine copa alcohol tinto rojo bebida' },
+    { e:'🍸', n:'coctel cocktail martini bebida copa alcohol' },
+    { e:'🍹', n:'coctel tropical drink bebida jugo tropical alcohol' },
+    { e:'🍺', n:'cerveza beer copa alcohol bebida cerveza rubia' },
+    { e:'🍻', n:'cervezas beers clinking brindis cervezas celebracion' },
+    { e:'🥂', n:'copas brindis champagne glasses brindis celebracion' },
+    { e:'🥃', n:'whisky whiskey vaso whisky alcohol shot' },
+    { e:'🧃', n:'jugo juice caja bebida jugo zumo' },
+    { e:'🥤', n:'refresco soda pop vaso bebida gaseosa refresco' },
+    { e:'🧋', n:'bubble tea boba te tapioca perlas bubble tea' },
+    { e:'🧊', n:'hielo ice ice hielo frio cubo' },
+
+    // activities & sports
+    { e:'⚽', n:'futbol soccer football balon deporte pelota futbol goal' },
+    { e:'🏀', n:'baloncesto basketball basquet deporte pelota nba basket' },
+    { e:'🏈', n:'futbol americano football americano deporte pelota nfl' },
+    { e:'⚾', n:'beisbol baseball deporte pelota bate mlb' },
+    { e:'🥎', n:'softbol softball slowpitch deporte pelota softbol' },
+    { e:'🎾', n:'tenis tennis deporte raqueta pelota tenis' },
+    { e:'🏐', n:'voleibol volleyball voley deporte pelota red' },
+    { e:'🏓', n:'ping pong pingpong tennis mesa raqueta pelota' },
+    { e:'🏸', n:'badminton badminton deporte raqueta volante plumilla' },
+    { e:'🏒', n:'hockey hielo ice hockey hockey hielo deporte palo' },
+    { e:'🏑', n:'hockey cesped field hockey hockey cesped deporte' },
+    { e:'🥅', n:'porteria goal net porteria red arco gol' },
+    { e:'⛳', n:'golf bandera golf hoyo deporte green campo' },
+    { e:'🎣', n:'pesca fishing pescar caña pez pescado' },
+    { e:'🤿', n:'buceo diving mask snorkel agua mar bucear' },
+    { e:'🎽', n:'camiseta running shirt jersey camiseta correr' },
+    { e:'🎿', n:'esqui ski esqui nieve invierno deporte nieve' },
+    { e:'🏂', n:'snowboard snowboard nieve tabla invierno' },
+    { e:'🏊', n:'natacion swimming nadar pileta deporte agua piscina' },
+    { e:'🏄', n:'surf surfing tabla ola mar agua playa' },
+    { e:'🚴', n:'ciclista cyclist bicicleta ciclismo bicicleta deporte' },
+    { e:'🚵', n:'montaña bici mountain biking bicicleta montaña ciclismo' },
+    { e:'🏋️', n:'pesas weightlifting pesas gimnasio ejercicio levantamiento' },
+    { e:'🤸', n:'gimnasia cartwheel gimnasia rueda acrobacia' },
+    { e:'⛹️', n:'dribbling bouncing ball dribbling basket pelota' },
+    { e:'🏌️', n:'golfista golfer golf golfista campo jugador' },
+    { e:'🥊', n:'boxeo boxing guantes pelea boxeo box ring' },
+    { e:'🥋', n:'artes marciales martial arts artes marciales kimono judo karate' },
+    { e:'🎯', n:'dardo diana target bullseye objetivo blanco tiro' },
+    { e:'🎳', n:'bolos bowling boliche bolos pines bola' },
+    { e:'🎮', n:'videojuego video game control juego videojuego mando gamer' },
+    { e:'🎰', n:'tragamonedas slot machine slot maquina casino' },
+    { e:'🎲', n:'dado game die dado juego azar' },
+    { e:'♟️', n:'peon ajedrez chess pawn peon ajedrez pieza' },
+    { e:'🎸', n:'guitarra guitar musica instrumento guitarra cuerda rock' },
+    { e:'🎹', n:'piano musical keyboard piano teclado musica instrumento' },
+    { e:'🎺', n:'trompeta trumpet musica instrumento trompeta metal viento' },
+    { e:'🎷', n:'saxofon saxophone sax musica instrumento jazz' },
+    { e:'🎻', n:'violin violin musica instrumento cuerda violin' },
+    { e:'🥁', n:'bateria drum tambor bateria musica instrumento percusion' },
+    { e:'🪕', n:'banjo banjo musica instrumento cuerda folk' },
+    { e:'🎤', n:'microfono microphone micro cantar karaoke musica' },
+    { e:'🎧', n:'audifonos headphones audifonos musica escuchar cascos' },
+    { e:'🎵', n:'nota musical music note sonido cancion melodia' },
+    { e:'🎶', n:'notas musicales music notes sonido cancion melodia' },
+
+    // objects & tools
+    { e:'📍', n:'pin ubicacion location marker lugar punto mapa pin' },
+    { e:'📌', n:'chincheta pushpin pin tachuela chincheta corcho' },
+    { e:'🖇️', n:'clip linked paperclips clip papeles sujetar' },
+    { e:'📎', n:'clip paperclip clip papel sujetar oficina' },
+    { e:'🏷️', n:'etiqueta label etiqueta tag precio' },
+    { e:'🗑️', n:'papelera trash basura borrar delete eliminar' },
+    { e:'📦', n:'paquete package box caja envio carton' },
+    { e:'🎁', n:'regalo gift presente envuelto caja sorpresa' },
+    { e:'🎈', n:'globo balloon fiesta party cumpleaños globo' },
+    { e:'🎉', n:'confeti party celebration fiesta celebración cumpleaños' },
+    { e:'🏆', n:'trofeo trophy winner ganador premio campeon' },
+    { e:'🥇', n:'medalla oro gold medal primer lugar primero ganador' },
+    { e:'🥈', n:'medalla plata silver medal segundo lugar' },
+    { e:'🥉', n:'medalla bronce bronze medal tercero lugar' },
+    { e:'💰', n:'dinero money dollar bag oro riqueza bolsa' },
+    { e:'💵', n:'billete dolar dollar bill dinero dolar billete' },
+    { e:'💴', n:'billete yen yen bill dinero yen japon' },
+    { e:'💶', n:'billete euro euro bill dinero euro europa' },
+    { e:'💷', n:'billete libra pound bill dinero libra uk' },
+    { e:'💳', n:'tarjeta credito credit card tarjeta credito visa pago' },
+    { e:'💎', n:'diamante diamond joya gema valioso rico' },
+    { e:'💣', n:'bomba bomb peligro explotar explosion dinamita' },
+    { e:'🧨', n:'dinamita dynamite explotar peligro fuego tnt' },
+    { e:'🔪', n:'cuchillo knife cuchillo navaja arma cocina' },
+    { e:'🗡️', n:'daga dagger daga arma puñal cuchillo' },
+    { e:'⚔️', n:'espadas crossed swords espadas cruzadas arma batalla' },
+    { e:'🛡️', n:'escudo shield proteccion defensa escudo' },
+    { e:'🔑', n:'llave key clave acceso seguridad puerta llave' },
+    { e:'🗝️', n:'llave antigua old key antigua vintage misterio' },
+    { e:'🔒', n:'candado lock cerrado seguridad bloqueado seguro' },
+    { e:'🔓', n:'candado abierto unlock abierto desbloquear seguro' },
+    { e:'🔐', n:'candado llave locked key candado cerrado con llave' },
+    { e:'🔨', n:'martillo hammer herramienta golpear clavar' },
+    { e:'⚒️', n:'martillo pico hammer pick herramienta mina' },
+    { e:'🛠️', n:'herramientas tools herramientas llave inglesa' },
+    { e:'⛏️', n:'pico pick mina mine excavar picar' },
+    { e:'🔧', n:'llave inglesa wrench herramienta llave tuerca' },
+    { e:'🪛', n:'destornillador screwdriver destornillador herramienta tornillo' },
+    { e:'🔩', n:'tornillo tuerca nut bolt tornillo tuerca hardware' },
+    { e:'⚙️', n:'engranaje gear engranaje mecanico rueda dentada' },
+    { e:'⛓️', n:'cadenas chains cadenas eslabones metal' },
+    { e:'🪚', n:'sierra saw sierra serrucho herramienta cortar madera' },
+    { e:'🧰', n:'caja herramientas toolbox caja herramientas caja herramientas' },
+    { e:'🔫', n:'pistola agua water gun pistola agua juguete verano' },
+    { e:'💊', n:'medicina pill medicina pastilla farmacia droga remedio' },
+    { e:'💉', n:'jeringa syringe jeringa inyeccion medicina vacuna' },
+    { e:'🩹', n:'curita bandage curita vendaje adhesive bandaid' },
+    { e:'🩺', n:'estetoscopio stethoscope estetoscopio medico doctor' },
+    { e:'🔬', n:'microscopio microscope microscopio ciencia laboratorio' },
+    { e:'🔭', n:'telescopio telescope telescopio astronomia espacio' },
+    { e:'📡', n:'antena satelite satellite antenna satelite antena comunicacion' },
+    { e:'🔋', n:'bateria battery bateria pila energia carga' },
+    { e:'🔌', n:'enchufe electric plug enchufe electricidad energia' },
+    { e:'💡', n:'foco bombilla light bulb foco bombilla idea luz' },
+    { e:'🔦', n:'linterna flashlight linterna luz oscuridad' },
+    { e:'🕯️', n:'vela candle vela luz cera fuego' },
+    { e:'📖', n:'libro abierto open book libro lectura conocimiento' },
+    { e:'📚', n:'libros books libros lectura biblioteca estudio' },
+    { e:'📔', n:'cuaderno notebook cuaderno libreta apuntes estudio' },
+    { e:'📝', n:'nota memo pencil nota escribir lapiz apunte' },
+    { e:'✏️', n:'lapiz pencil lapiz escribir dibujar escolar herramienta' },
+    { e:'🖊️', n:'boligrafo pen boligrafo escribir tinta pluma' },
+    { e:'🖍️', n:'crayon crayon crayola crayon color dibujar' },
+    { e:'📷', n:'camara camera foto photography fotografia imagen' },
+    { e:'📸', n:'camara flash camera flash camara foto fotografia flash' },
+    { e:'📹', n:'camara video video camera camara video filmacion' },
+    { e:'🎥', n:'camara cine movie camera camara cine pelicula film' },
+    { e:'📱', n:'telefono movil phone celular smartphone movil iphone' },
+    { e:'💻', n:'laptop computadora computer portatil notebook macbook' },
+    { e:'⌨️', n:'teclado keyboard teclado computadora escribir input' },
+    { e:'🖥️', n:'monitor desktop monitor computadora pantalla pc' },
+    { e:'🖨️', n:'impresora printer impresora imprimir papel oficina' },
+    { e:'🖱️', n:'mouse mouse raton computadora click input' },
+    { e:'☎️', n:'telefono clasico telephone phone fijo clasico retro' },
+    { e:'📞', n:'auricular telefono receiver auricular telefono llamada' },
+    { e:'📟', n:'buscapersonas pager buscapersonas beeper retro' },
+    { e:'📠', n:'fax fax fax maquina oficina documento' },
+    { e:'✉️', n:'sobre carta envelope mail correo postal email' },
+    { e:'📧', n:'email email email correo electronico mensaje' },
+    { e:'📬', n:'buzon abierto open mailbox buzon correo abierto bandera' },
+
+    // symbols & signs
+    { e:'❤️', n:'corazon heart love amor rojo favorito like' },
+    { e:'💙', n:'corazon azul blue heart amor corazon azul' },
+    { e:'💚', n:'corazon verde green heart amor corazon verde naturaleza' },
+    { e:'💛', n:'corazon amarillo yellow heart amor corazon amarillo' },
+    { e:'💜', n:'corazon morado purple heart amor corazon morado purple' },
+    { e:'🖤', n:'corazon negro black heart amor corazon negro oscuro' },
+    { e:'🤍', n:'corazon blanco white heart amor corazon blanco' },
+    { e:'🤎', n:'corazon marron brown heart amor corazon marron cafe' },
+    { e:'🧡', n:'corazon naranja orange heart amor corazon naranja' },
+    { e:'💔', n:'corazon roto broken heart desamor ruptura tristeza' },
+    { e:'💕', n:'dos corazones two hearts corazon amor amor pareja' },
+    { e:'💖', n:'corazon brillante sparkling heart corazon brillo amor magico' },
+    { e:'💗', n:'corazon creciendo growing heart corazon latiendo amor' },
+    { e:'💘', n:'corazon flecha heart arrow flecha cupido enamorado' },
+    { e:'💝', n:'corazon moño heart ribbon corazon moño regalo amor' },
+    { e:'💟', n:'decoracion corazon heart decoration corazon decorativo' },
+    { e:'✅', n:'check verificado correcto visto listo tarea ok completado' },
+    { e:'❌', n:'cruz cross tacha error incorrecto cancelar no' },
+    { e:'❓', n:'signo pregunta rojo question interrogacion pregunta duda rojo' },
+    { e:'❕', n:'signo exclamacion blanco exclamation exclamacion blanco' },
+    { e:'❗', n:'signo exclamacion rojo exclamation exclamacion rojo importante' },
+    { e:'➕', n:'mas plus suma matematicas añadir agregar positivo' },
+    { e:'➖', n:'menos minus resta matematicas quitar negativo' },
+    { e:'✖️', n:'multiplicacion multiply multiplicar por matematicas' },
+    { e:'➗', n:'division divide dividir entre matematicas' },
+    { e:'♻️', n:'reciclaje recycle reciclar verde eco ecologia' },
+    { e:'✅', n:'marca check mark verificado correcto listo visto' },
+    { e:'☑️', n:'casilla marcada checked box checkbox verificado' },
+    { e:'✔️', n:'check grueso heavy check verificado correcto' },
+    { e:'⚠️', n:'advertencia warning danger peligro atencion alerta cuidado' },
+    { e:'🚸', n:'niños crossing niños school peatones peatonal cruce' },
+    { e:'🚫', n:'prohibido no entrada forbidden prohibido negado no' },
+    { e:'🚳', n:'prohibido bicis no bikes prohibido bicicletas no' },
+    { e:'🛑', n:'stop pare alto señal stop octagonal' },
+    { e:'⛔', n:'acceso prohibido no entry acceso prohibido negado' },
+    { e:'☢️', n:'radioactivo radioactive radiactivo peligro nuclear' },
+    { e:'☣️', n:'biologico biohazard peligro biologic biologico toxico' },
+    { e:'⬆️', n:'flecha arriba arrow up subir arriba norte' },
+    { e:'⬇️', n:'flecha abajo arrow down bajar abajo sur' },
+    { e:'⬅️', n:'flecha izquierda arrow left izquierda oeste atras' },
+    { e:'➡️', n:'flecha derecha arrow right derecha este adelante' },
+    { e:'🔄', n:'flechas circulares arrows counterclockwise actualizar refrescar' },
+    { e:'🔙', n:'flecha back back arrow atras volver retroceder' },
+    { e:'🏳️', n:'bandera blanca white flag rendirse paz bandera blanca' },
+    { e:'🚩', n:'bandera roja triangular flag bandera roja triangulo alerta' },
+    { e:'🏁', n:'bandera cuadros flag checker meta carrera llegada' },
+    { e:'🏴', n:'bandera negra black flag bandera negra pirata' },
+    { e:'🏳️‍🌈', n:'bandera arcoiris pride flag rainbow lgbt orgullo diversidad' },
+    { e:'💀', n:'calavera skull muerte danger peligro craneo esqueleto' },
+    { e:'☠️', n:'calavera huesos skull bones veneno toxico pirata peligro' },
+    { e:'♿', n:'silla ruedas wheelchair accesibilidad silla ruedas discapacidad' },
+    { e:'🚻', n:'baño restroom banos baño wc sanitario' },
+    { e:'🚹', n:'baño hombres mens restroom baño hombres masculino' },
+    { e:'🚺', n:'baño mujeres womens restroom baño mujeres femenino' },
+    { e:'🚼', n:'cambiador bebe baby changing cambiador bebe bebe' },
+    { e:'🚭', n:'prohibido fumar no smoking prohibido fumar cigarros no' },
+    { e:'📵', n:'prohibido movil no phones prohibido movil celular' },
+    { e:'🔞', n:'mayores 18 eighteen prohibido menores adulto restriccion' },
+    { e:'💯', n:'100 cien points cien cien puntos perfecto score' },
+    { e:'🔰', n:'simbolo japones Japanese symbol japones principiante simbolo' },
+    { e:'♈', n:'aries aries zodiaco signo astrologia' },
+    { e:'♉', n:'tauro taurus zodiaco signo astrologia' },
+    { e:'♊', n:'geminis gemini zodiaco signo astrologia' },
+    { e:'♋', n:'cancer cancer zodiaco signo astrologia' },
+    { e:'♌', n:'leo leo zodiaco signo astrologia' },
+    { e:'♍', n:'virgo virgo zodiaco signo astrologia' },
+    { e:'♎', n:'libra libra zodiaco signo astrologia' },
+    { e:'♏', n:'escorpio scorpio zodiaco signo astrologia' },
+    { e:'♐', n:'sagitario sagittarius zodiaco signo astrologia' },
+    { e:'♑', n:'capricornio capricorn zodiaco signo astrologia' },
+    { e:'♒', n:'acuario aquarius zodiaco signo astrologia' },
+    { e:'♓', n:'piscis pisces zodiaco signo astrologia' },
+    { e:'⛎', n:'ofiuco ophiuchus zodiaco signo serpiente' },
+  ];
+
+  const MAX_RECENT = 18;
+  let recentEmojis = JSON.parse(localStorage.getItem('map_recent') || '[]');
+
+  function addToRecent(emo) {
+    recentEmojis = recentEmojis.filter(e => e !== emo);
+    recentEmojis.unshift(emo);
+    if (recentEmojis.length > MAX_RECENT) recentEmojis.pop();
+    localStorage.setItem('map_recent', JSON.stringify(recentEmojis));
+    renderRecentGrid();
+  }
+
+  const COLORS = ['#ff4444','#ff8f00','#ffee33','#4caf50','#2196f3','#9c27b0','#ffffff','#000000'];
+
+  /* ── DOM REFS ─────────────────────── */
+  const emojiGrid    = document.getElementById('emoji-grid');
+  const btnDraw      = document.getElementById('btn-draw');
+  const btnClearDraw = document.getElementById('btn-clear-draw');
+  const btnClearEmoj = document.getElementById('btn-clear-emojis');
+  const colorsRow    = document.getElementById('colors-row');
+  const statusBar    = document.getElementById('status-bar');
+  const btnSearch    = document.getElementById('btn-search');
+  const searchOverlay= document.getElementById('search-overlay');
+  const searchInput  = document.getElementById('search-input');
+  const searchResults= document.getElementById('search-results');
+  const searchClose  = document.getElementById('search-close');
+
+  /* ── RENDER RECENT GRID ───────────── */
+  function renderRecentGrid() {
+    emojiGrid.innerHTML = '';
+    if (recentEmojis.length === 0) {
+      const hint = document.createElement('span');
+      hint.style.cssText = 'color:#666;font-size:10px;text-align:center;padding:4px;width:100%';
+      hint.textContent = 'Busca 🔍\npara empezar';
+      emojiGrid.appendChild(hint);
+      return;
+    }
+    recentEmojis.forEach(emo => {
+      const btn = document.createElement('button');
+      btn.className = 'emoji-btn';
+      btn.textContent = emo;
+      if (selectedEmoji === emo) btn.classList.add('selected');
+      btn.addEventListener('click', () => selectEmojiFromSidebar(emo, btn));
+      emojiGrid.appendChild(btn);
+    });
+  }
+
+  /* ── SEARCH ───────────────────────── */
+  function openSearch() {
+    searchOverlay.classList.add('open');
+    searchInput.value = '';
+    searchInput.focus();
+    renderSearchResults('');
+  }
+
+  function closeSearch() {
+    searchOverlay.classList.remove('open');
+  }
+
+  function renderSearchResults(query) {
+    searchResults.innerHTML = '';
+    const q = query.toLowerCase().trim();
+
+    let matches;
+    if (q.length === 0) {
+      matches = EMOJI_DB;
+    } else {
+      matches = EMOJI_DB.filter(item => item.n.includes(q));
+    }
+
+    if (q.length > 0 && matches.length === 0) {
+      searchResults.innerHTML = '<span id="search-hint">Sin resultados para "' + q + '"</span>';
+      return;
+    }
+
+    matches.forEach(item => {
+      const btn = document.createElement('button');
+      btn.className = 'emoji-btn';
+      btn.textContent = item.e;
+      if (selectedEmoji === item.e) btn.classList.add('selected');
+      btn.addEventListener('click', () => {
+        selectEmojiFromSearch(item.e);
+        closeSearch();
+      });
+      searchResults.appendChild(btn);
+    });
+  }
+
+  function selectEmojiFromSearch(emo) {
+    if (drawMode) toggleDrawMode();
+    if (selectedEmoji === emo) {
+      stopPlacing();
+      return;
+    }
+    selectedEmoji = emo;
+    addToRecent(emo);
+    refreshAllEmojiButtons();
+    showStopButton(true);
+    showStatus('Tocá el mapa para colocar ' + emo + '   |   ⏹ para detener');
+  }
+
+  btnSearch.addEventListener('click', openSearch);
+  searchClose.addEventListener('click', closeSearch);
+  searchOverlay.addEventListener('click', function(e) {
+    if (e.target === searchOverlay) closeSearch();
+  });
+  searchInput.addEventListener('input', function() {
+    renderSearchResults(this.value);
+  });
+
+  document.addEventListener('keydown', function(e) {
+    if (e.key === 'Escape') {
+      if (searchOverlay.classList.contains('open')) {
+        closeSearch();
+        return;
+      }
+      if (drawMode) { toggleDrawMode(); return; }
+      if (selectedEmoji) { stopPlacing(); return; }
+    }
+    if (e.ctrlKey && e.key === 'f') {
+      e.preventDefault();
+      openSearch();
+    }
+  });
+
+  /* ── BUILD UI ─────────────────────── */
+  renderRecentGrid();
+
+  COLORS.forEach(c => {
+    const dot = document.createElement('div');
+    dot.className = 'color-dot';
+    dot.style.background = c;
+    if (c === drawColor) dot.classList.add('selected');
+    dot.addEventListener('click', () => {
+      drawColor = c;
+      document.querySelectorAll('.color-dot').forEach(d => d.classList.remove('selected'));
+      dot.classList.add('selected');
+    });
+    colorsRow.appendChild(dot);
+  });
+
+  /* ── STATUS MESSAGE ──────────────── */
+  let statusTimeout;
+  function showStatus(msg) {
+    statusBar.textContent = msg;
+    statusBar.classList.add('visible');
+    clearTimeout(statusTimeout);
+    statusTimeout = setTimeout(() => statusBar.classList.remove('visible'), 2000);
+  }
+
+  /* ── EMOJI SELECTION (SIDEBAR) ────── */
+  function selectEmojiFromSidebar(emo, btnEl) {
+    if (drawMode) toggleDrawMode();
+    if (selectedEmoji === emo) {
+      stopPlacing();
+      return;
+    }
+    selectedEmoji = emo;
+    addToRecent(emo);
+    refreshAllEmojiButtons();
+    showStopButton(true);
+    showStatus('Tocá el mapa para colocar ' + emo + '   |   ⏹ para detener');
+  }
+
+  function refreshAllEmojiButtons() {
+    document.querySelectorAll('.emoji-btn').forEach(btn => {
+      if (btn.textContent === selectedEmoji) {
+        btn.classList.add('selected');
+      } else {
+        btn.classList.remove('selected');
+      }
+    });
+  }
+
+  /* ── STOP PLACING ─────────────────── */
+  const btnStop = document.getElementById('btn-stop');
+
+  function showStopButton(visible) {
+    if (visible) {
+      btnStop.classList.add('visible');
+    } else {
+      btnStop.classList.remove('visible');
+    }
+  }
+
+  function stopPlacing() {
+    selectedEmoji = null;
+    showStopButton(false);
+    refreshAllEmojiButtons();
+    map.getContainer().style.cursor = '';
+    showStatus('Colocación detenida');
+  }
+
+  btnStop.addEventListener('click', function(e) {
+    e.preventDefault();
+    e.stopPropagation();
+    stopPlacing();
+  });
+
+  /* ── PLACE EMOJI ON MAP ──────────── */
+  map.on('click', function(e) {
+    if (!selectedEmoji) return;
+
+    const icon = L.divIcon({
+      html: '<div class="emoji-marker-inner">' + selectedEmoji + '<span class="clear-emoji-btn">&times;</span></div>',
+      className: 'emoji-marker',
+      iconSize: [36, 36],
+      iconAnchor: [18, 18],
+    });
+
+    const marker = L.marker(e.latlng, { icon, interactive: true }).addTo(emojiLayer);
+    marker.bindTooltip(selectedEmoji, { direction: 'top', offset: [0, -18], opacity: 0.85 });
+
+    marker.on('click', function(ev) {
+      if (drawMode) return;
+      L.DomEvent.stopPropagation(ev);
+      emojiLayer.removeLayer(marker);
+    });
+  });
+
+  /* ── DRAWING ──────────────────────── */
+  function toggleDrawMode() {
+    drawMode = !drawMode;
+    if (drawMode) {
+      if (selectedEmoji) {
+        selectedEmoji = null;
+        refreshAllEmojiButtons();
+        showStopButton(false);
+      }
+      btnDraw.classList.add('active');
+      map.dragging.disable();
+      map.getContainer().style.cursor = 'crosshair';
+      showStatus('Modo dibujo: dibujá en el mapa');
+    } else {
+      btnDraw.classList.remove('active');
+      map.dragging.enable();
+      map.getContainer().style.cursor = '';
+      showStatus('Dibujo desactivado');
+    }
+  }
+
+  btnDraw.addEventListener('click', toggleDrawMode);
+
+  function getLatLng(e) {
+    return e.latlng || map.mouseEventToLatLng(e.originalEvent);
+  }
+
+  function startDrawing(e) {
+    if (!drawMode) return;
+    if (e.originalEvent && e.originalEvent.target && e.originalEvent.target.closest('#sidebar')) return;
+    L.DomEvent.preventDefault(e);
+    isDrawing = true;
+    const ll = getLatLng(e);
+    currentLine = L.polyline([ll], {
+      color: drawColor,
+      weight: 4,
+      opacity: 0.9,
+      lineCap: 'round',
+      lineJoin: 'round',
+      smoothFactor: 1,
+    }).addTo(drawLayer);
+  }
+
+  function moveDrawing(e) {
+    if (!drawMode || !isDrawing || !currentLine) return;
+    L.DomEvent.preventDefault(e);
+    const ll = getLatLng(e);
+    currentLine.addLatLng(ll);
+  }
+
+  function endDrawing(e) {
+    if (!drawMode || !isDrawing) return;
+    isDrawing = false;
+    currentLine = null;
+  }
+
+  map.on('mousedown', startDrawing);
+  map.on('mousemove', moveDrawing);
+  map.on('mouseup', endDrawing);
+  map.on('mouseleave', endDrawing);
+
+  map.on('touchstart', startDrawing);
+  map.on('touchmove', moveDrawing);
+  map.on('touchend', endDrawing);
+
+  btnClearDraw.addEventListener('click', function() {
+    drawLayer.clearLayers();
+    showStatus('Todos los dibujos borrados');
+  });
+
+  btnClearEmoj.addEventListener('click', function() {
+    emojiLayer.clearLayers();
+    showStatus('Todos los emojis borrados');
+  });
+
+  showStatus('Busca emojis 🔍 y selecciona uno para colocar');
+})();
+</script>
+</body>
+</html>
