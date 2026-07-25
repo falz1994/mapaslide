@@ -677,60 +677,70 @@ html, body {
           'https://cdn.jsdelivr.net/npm/world-atlas@2/countries-110m.json',
           'https://raw.githubusercontent.com/datasets/geo-countries/master/data/countries.geojson',
         ];
-        var resp;
-        for (var i = 0; i < urls.length; i++) {
+        var features = null;
+        for (var u = 0; u < urls.length; u++) {
           try {
-            resp = await fetch(urls[i]);
-            if (resp.ok) break;
-          } catch(e2) { continue; }
-        }
-        if (!resp || !resp.ok) throw new Error('No se pudo descargar el mapa base');
-        var full = await resp.json();
-        var isoSet = {};
-        PAISES.forEach(function(p) { isoSet[p.iso] = true; });
+            var resp = await fetch(urls[u]);
+            if (!resp.ok) continue;
+            var full = await resp.json();
+            var isoSet = {};
+            PAISES.forEach(function(p) { isoSet[p.iso] = true; });
 
-        // handle both GeoJSON and TopoJSON
-        var features;
-        if (full.type === 'Topology') {
-          if (typeof topojson === 'undefined') {
-            throw new Error('topojson no disponible. Recargá la página.');
-          }
-          features = topojson.feature(full, full.objects.countries).features;
-          // map numeric IDs to ISO codes (110m uses numeric IDs, need name matching)
-          features = features.filter(function(f) {
-            var name = f.properties && f.properties.name;
-            return name && PAISES.some(function(p) {
-              return p.pais.toLowerCase() === name.toLowerCase() ||
-                     altNames(p.pais).indexOf(name.toLowerCase()) >= 0;
-            });
-          });
-        } else {
-          features = full.features.filter(function(f) {
-            var code = (f.properties && (f.properties.ISO_A2 || f.properties.iso_a2 || f.properties.ADM0_A3)) || '';
-            return isoSet[code] || PAISES.some(function(p) { return p.iso === code; });
-          });
+            if (full.type === 'Topology') {
+              if (typeof topojson === 'undefined') continue;
+              var objKey = full.objects.countries ? 'countries' : (full.objects.countries110 ? 'countries110' : null);
+              if (!objKey) continue;
+              features = topojson.feature(full, full.objects[objKey]).features;
+              console.log('TopoJSON features total:', features.length, 'sample names:', features.slice(0,5).map(function(f){return f.properties&&f.properties.name;}));
+              features = features.filter(function(f) {
+                var name = f.properties && f.properties.name;
+                if (!name) return false;
+                var nl = name.toLowerCase();
+                return PAISES.some(function(p) {
+                  return p.pais.toLowerCase() === nl || altNames(p.pais).indexOf(nl) >= 0;
+                });
+              });
+            } else {
+              features = full.features.filter(function(f) {
+                var code = (f.properties && (f.properties.ISO_A2 || f.properties.iso_a2 || f.properties.ADM0_A3)) || '';
+                return isoSet[code];
+              });
+            }
+            if (features && features.length > 0) {
+              console.log('Matched features:', features.length, 'names:', features.map(function(f){return f.properties&&f.properties.name;}));
+              geojson = { type: 'FeatureCollection', features: features };
+              geojson = { type: 'FeatureCollection', features: features };
+              break;
+            }
+          } catch(e2) { console.warn('URL fallida:', urls[u], e2); }
         }
-        geojson = { type: 'FeatureCollection', features: features };
-        try { localStorage.setItem('map_political_geo', JSON.stringify(geojson)); } catch(e3) {}
-        cachedGeoJSON = geojson;
-      }
-      if (!geojson.features || geojson.features.length === 0) {
-        throw new Error('No se encontraron países para el mapa político');
-      }
+        if (!geojson || !geojson.features || geojson.features.length === 0) {
+          throw new Error('No se encontraron países. Probá de nuevo.');
+        }
       renderPoliticalLayer(geojson);
       politicalVisible = true;
       showStatus('Mapa político activo: ' + geojson.features.length + ' países');
     } catch(e) {
       btn.classList.remove('active');
+      localStorage.removeItem('map_political_geo');
+      cachedGeoJSON = null;
       console.error('Error mapa político:', e);
       showStatus('Error: ' + e.message + '. Reintentá.');
     }
   }
 
   function altNames(pais) {
-    var map = { 'brasil':'brazil', 'méxico':'mexico', 'perú':'peru', 'panamá':'panama', 'república dominicana':'dominican rep.', 'el salvador':'el salvador', 'haití':'haiti', 'cuba':'cuba', 'venezuela':'venezuela', 'colombia':'colombia', 'chile':'chile', 'argentina':'argentina', 'bolivia':'bolivia', 'ecuador':'ecuador', 'uruguay':'uruguay', 'paraguay':'paraguay', 'guatemala':'guatemala', 'honduras':'honduras', 'nicaragua':'nicaragua', 'costa rica':'costa rica' };
+    var map = {
+      'brasil':'brazil', 'méxico':'mexico', 'perú':'peru', 'panamá':'panama',
+      'república dominicana':'dominican rep.', 'república dominicana':'dominican republic',
+      'haití':'haiti', 'cuba':'cuba', 'venezuela':'venezuela', 'colombia':'colombia',
+      'chile':'chile', 'argentina':'argentina', 'bolivia':'bolivia', 'ecuador':'ecuador',
+      'uruguay':'uruguay', 'paraguay':'paraguay', 'guatemala':'guatemala',
+      'honduras':'honduras', 'nicaragua':'nicaragua', 'costa rica':'costa rica',
+      'el salvador':'el salvador', 'estados unidos':'united states',
+    };
     var n = pais.toLowerCase(), alts = [n];
-    if (map[n]) alts.push(map[n]);
+    if (map[n]) { alts.push(map[n]); }
     return alts;
   }
 
