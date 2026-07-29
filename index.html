@@ -703,6 +703,7 @@ try {
   /* ── EXPAND EMOJI DB FROM CDN ───── */
   let EMOJI_SEARCH = EMOJI_DB.slice();
   let emojiExpanded = false;
+  console.log('EMOJI_DB base:', EMOJI_DB.length, 'EMOJI_SEARCH init:', EMOJI_SEARCH.length);
 
   (async function loadEmojiLibrary() {
     try {
@@ -1935,6 +1936,7 @@ try {
 
   /* ── RENDER RECENT GRID ───────────── */
   function renderRecentGrid() {
+    console.log('renderRecentGrid called, recentEmojis:', recentEmojis.length);
     emojiGrid.innerHTML = '';
     if (recentEmojis.length === 0) {
       const hint = document.createElement('span');
@@ -1971,7 +1973,7 @@ try {
 
     let matches;
     if (q.length === 0) {
-      matches = EMOJI_SEARCH;
+      matches = EMOJI_SEARCH.slice(0, 80);
     } else {
       matches = EMOJI_SEARCH.filter(item => item.n.includes(q));
     }
