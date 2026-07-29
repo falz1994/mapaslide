@@ -254,7 +254,21 @@ html, body {
 }
 
 .combo-marker-inner:hover span {
-  /* prevent clear-btn hover issues */
+}
+
+/* ── CONTEXT MENU ───────────────── */
+.ctx-item:hover {
+  background: #333 !important;
+}
+.ctx-item:active {
+  background: #444 !important;
+}
+
+/* ── ANIMATION ──────────────────── */
+.anim-start-marker,
+.anim-end-marker {
+  background: none !important;
+  border: none !important;
 }
 
 /* ── STOP BUTTON ────────────── */
@@ -752,6 +766,17 @@ html, body {
     <div id="map"></div>
     <div class="status-bar" id="status-bar"></div>
     <button id="btn-stop">⏹ Detener</button>
+    <!-- Context menu for emoji markers -->
+    <div id="ctx-menu" style="display:none;position:absolute;z-index:10000;background:#1e1e2e;border:1px solid #444;border-radius:10px;overflow:hidden;box-shadow:0 6px 20px rgba(0,0,0,0.6);min-width:140px;">
+      <button class="ctx-item" data-action="animate" style="display:block;width:100%;padding:10px 14px;border:none;background:none;color:#fff;font-size:14px;text-align:left;cursor:pointer;">🎬 Animar</button>
+      <button class="ctx-item" data-action="stopAnim" style="display:none;width:100%;padding:10px 14px;border:none;background:none;color:#f9a825;font-size:14px;text-align:left;cursor:pointer;">⏸ Detener animación</button>
+      <button class="ctx-item" data-action="delete" style="display:block;width:100%;padding:10px 14px;border:none;background:none;color:#ef4444;font-size:14px;text-align:left;cursor:pointer;">🗑️ Eliminar</button>
+    </div>
+    <!-- Animation toolbar -->
+    <div id="anim-toolbar" style="display:none;position:absolute;bottom:100px;left:50%;transform:translateX(-50%);background:#1e1e2e;border-radius:24px;padding:8px 16px;z-index:9999;box-shadow:0 4px 16px rgba(0,0,0,0.5);">
+      <button id="anim-start-btn" style="background:#4caf50;color:#fff;border:none;border-radius:16px;padding:8px 18px;font-size:14px;font-weight:600;cursor:pointer;margin-right:8px;">✅ Animar</button>
+      <button id="anim-cancel-btn" style="background:#555;color:#fff;border:none;border-radius:16px;padding:8px 14px;font-size:14px;cursor:pointer;">❌ Cancelar</button>
+    </div>
   </div>
 
   <!-- SEARCH OVERLAY -->
@@ -856,8 +881,8 @@ try {
     { pais:"Paraguay", iso:"PY", lider:"Santiago Peña", orientacion:"derecha", sub:"derecha conservadora tradicional"},
     { pais:"Perú", iso:"PE", lider:"Transición (Keiko Fujimori)", orientacion:"derecha", sub:"transición conservadora"},
     { pais:"República Dominicana", iso:"DO", lider:"Luis Abinader", orientacion:"derecha", sub:"centroderecha moderada"},
-    { pais:"Uruguay", iso:"UY", lider:"Yamandú Orsi", orientacion:"izquierda", sub:"centroizquierda socialdemócrata"},
-    { pais:"Venezuela", iso:"VE", lider:"Gobierno chavista", orientacion:"izquierda", sub:"socialismo del siglo XXI (bolivarianismo)", nota:"Crisis política y disputas de legitimidad"},
+    { pais:"Uruguay", iso:"UY", lider:"Yamandú Orsi", orientacion:"izquierda_proeeuu", sub:"centroizquierda socialdemócrata pro-EEUU"},
+    { pais:"Venezuela", iso:"VE", lider:"Gobierno chavista", orientacion:"izquierda_proeeuu", sub:"socialismo del siglo XXI (bolivarianismo)", nota:"Crisis política y disputas de legitimidad"},
   ];
 
   const POLITICAL_COLORS = {
@@ -1263,7 +1288,12 @@ try {
         const m = L.marker([item.lat, item.lng], { icon, interactive: true }).addTo(emojiLayer);
         m._emoji = item.e;
         m.bindTooltip(buildEmojiTooltip(item.e), { direction: 'top', offset: [0, -an - 2], opacity: 0.85 });
-        m.on('click', removeEmojiMarker);
+        m.on('click', showEmojiContextMenu);
+        if (item.animStart && item.animEnd) {
+          m._animStart = L.latLng(item.animStart.lat, item.animStart.lng);
+          m._animEnd = L.latLng(item.animEnd.lat, item.animEnd.lng);
+          startMarkerAnimation(m);
+        }
       });
     }
     if (state.drawings) {
@@ -1288,7 +1318,12 @@ try {
     const emojis = [];
     emojiLayer.eachLayer(function(m) {
       const ll = m.getLatLng();
-      emojis.push({ e: m._emoji, lat: ll.lat, lng: ll.lng });
+      var item = { e: m._emoji, lat: ll.lat, lng: ll.lng };
+      if (m._animStart && m._animEnd) {
+        item.animStart = { lat: m._animStart.lat, lng: m._animStart.lng };
+        item.animEnd = { lat: m._animEnd.lat, lng: m._animEnd.lng };
+      }
+      emojis.push(item);
     });
     const drawings = [];
     drawLayer.eachLayer(function(p) {
@@ -1337,8 +1372,13 @@ try {
           });
           const marker = L.marker([item.lat, item.lng], { icon, interactive: true }).addTo(emojiLayer);
           marker._emoji = item.e;
-          marker.bindTooltip(item.e, { direction: 'top', offset: [0, -18], opacity: 0.85 });
-          marker.on('click', removeEmojiMarker);
+          marker.bindTooltip(buildEmojiTooltip(item.e), { direction: 'top', offset: [0, -an2 - 2], opacity: 0.85 });
+          marker.on('click', showEmojiContextMenu);
+          if (item.animStart && item.animEnd) {
+            marker._animStart = L.latLng(item.animStart.lat, item.animStart.lng);
+            marker._animEnd = L.latLng(item.animEnd.lat, item.animEnd.lng);
+            startMarkerAnimation(marker);
+          }
         });
       }
       if (state.drawings) {
@@ -1362,12 +1402,156 @@ try {
     } catch(e) { console.warn('Supabase load error:', e); return false; }
   }
 
-  function removeEmojiMarker(ev) {
+  /* ── EMOJI CONTEXT MENU ────────────── */
+  var ctxMenu = document.getElementById('ctx-menu');
+  var ctxTarget = null;
+
+  function showEmojiContextMenu(ev) {
     if (drawMode) return;
+    if (animSetupActive) return;
     L.DomEvent.stopPropagation(ev);
-    pushUndo();
-    emojiLayer.removeLayer(this);
+    ctxTarget = this;
+    var animating = isAnimated(this);
+    ctxMenu.querySelector('[data-action="animate"]').style.display = animating ? 'none' : 'block';
+    ctxMenu.querySelector('[data-action="stopAnim"]').style.display = animating ? 'block' : 'none';
+    var pt = map.latLngToContainerPoint(this.getLatLng());
+    var top = pt.y - 10;
+    var left = pt.x + 20;
+    if (left + 150 > map.getSize().x) left = pt.x - 160;
+    if (top + 90 > map.getSize().y) top = pt.y - 100;
+    ctxMenu.style.top = top + 'px';
+    ctxMenu.style.left = left + 'px';
+    ctxMenu.style.display = 'block';
+  }
+
+  function hideContextMenu() {
+    ctxMenu.style.display = 'none';
+    ctxTarget = null;
+  }
+
+  ctxMenu.addEventListener('click', function(e) {
+    var action = e.target.dataset.action;
+    if (!action) return;
+    hideContextMenu();
+    if (action === 'delete') {
+      pushUndo();
+      if (ctxTarget._animFrame) cancelAnimationFrame(ctxTarget._animFrame);
+      emojiLayer.removeLayer(ctxTarget);
+      saveMapState();
+    }
+    if (action === 'animate') {
+      startAnimSetup(ctxTarget);
+    }
+    if (action === 'stopAnim') {
+      stopMarkerAnimation(ctxTarget);
+      ctxTarget._animStart = null;
+      ctxTarget._animEnd = null;
+      saveMapState();
+      showStatus('Animación detenida');
+    }
+  });
+
+  map.on('click', function() { hideContextMenu(); });
+  map.on('move', function() { hideContextMenu(); });
+
+  /* ── EMOJI ANIMATION ───────────────── */
+  var animSetupActive = false;
+  var animTarget = null;
+  var animStartMkr = null;
+  var animEndMkr = null;
+  var animPathLine = null;
+  var animToolbar = document.getElementById('anim-toolbar');
+
+  function startAnimSetup(marker) {
+    animSetupActive = true;
+    animTarget = marker;
+    var pos = marker.getLatLng();
+
+    animStartMkr = L.marker(pos, {
+      icon: L.divIcon({ className: 'anim-start-marker', html: '<span class="anim-label">Inicio</span>', iconSize: [60, 24], iconAnchor: [30, 18] }),
+      draggable: false, interactive: false,
+    }).addTo(map);
+
+    animEndMkr = L.marker(pos, {
+      icon: L.divIcon({ className: 'anim-end-marker', html: '<span class="anim-label">Fin (arrastra)</span>', iconSize: [90, 24], iconAnchor: [45, 18] }),
+      draggable: true, interactive: true,
+    }).addTo(map);
+
+    animEndMkr.on('drag', function() {
+      if (animPathLine) map.removeLayer(animPathLine);
+      animPathLine = L.polyline([animStartMkr.getLatLng(), animEndMkr.getLatLng()], {
+        color: '#4fc3f7', weight: 2, dashArray: '8 6', opacity: 0.8,
+      }).addTo(map);
+    });
+
+    animEndMkr.setLatLng([pos.lat + 2, pos.lng + 2]);
+    animPathLine = L.polyline([pos, animEndMkr.getLatLng()], {
+      color: '#4fc3f7', weight: 2, dashArray: '8 6', opacity: 0.8,
+    }).addTo(map);
+
+    animToolbar.style.display = 'block';
+    showStatus('Arrastrá el punto "Fin" y luego presioná ✅ Animar');
+    map.dragging.disable();
+  }
+
+  function cancelAnimSetup() {
+    if (animStartMkr) { map.removeLayer(animStartMkr); animStartMkr = null; }
+    if (animEndMkr) { map.removeLayer(animEndMkr); animEndMkr = null; }
+    if (animPathLine) { map.removeLayer(animPathLine); animPathLine = null; }
+    animToolbar.style.display = 'none';
+    animSetupActive = false;
+    animTarget = null;
+    map.dragging.enable();
+    showStatus('Animación cancelada');
+  }
+
+  document.getElementById('anim-start-btn').addEventListener('click', function() {
+    if (!animTarget || !animStartMkr || !animEndMkr) return;
+    animTarget._animStart = animStartMkr.getLatLng();
+    animTarget._animEnd = animEndMkr.getLatLng();
+    animTarget._animProgress = 0;
+    animTarget._animForward = true;
+    cancelAnimSetup();
+    startMarkerAnimation(animTarget);
     saveMapState();
+    showStatus('Animación iniciada (loop)');
+  });
+
+  document.getElementById('anim-cancel-btn').addEventListener('click', cancelAnimSetup);
+
+  function startMarkerAnimation(m) {
+    if (m._animFrame) cancelAnimationFrame(m._animFrame);
+    var start = m._animStart;
+    var end = m._animEnd;
+    var speed = 0.002;
+    var forward = m._animForward !== false;
+
+    function step() {
+      if (!map.hasLayer(m)) { m._animFrame = null; return; }
+      var p = m._animProgress;
+      if (forward) {
+        p += speed;
+        if (p >= 1) { p = 1; forward = false; }
+      } else {
+        p -= speed;
+        if (p <= 0) { p = 0; forward = true; }
+      }
+      m._animProgress = p;
+      m._animForward = forward;
+      var lat = start.lat + (end.lat - start.lat) * p;
+      var lng = start.lng + (end.lng - start.lng) * p;
+      m.setLatLng([lat, lng]);
+      m._animFrame = requestAnimationFrame(step);
+    }
+    m._animFrame = requestAnimationFrame(step);
+  }
+
+  function stopMarkerAnimation(m) {
+    if (m._animFrame) { cancelAnimationFrame(m._animFrame); m._animFrame = null; }
+  }
+
+  function isAnimated(m) {
+    return !!(m._animStart && m._animEnd);
   }
 
   /* ── EMOJI DATABASE ──────────────── */
@@ -2512,7 +2696,7 @@ try {
     const marker = L.marker(e.latlng, { icon, interactive: true }).addTo(emojiLayer);
     marker._emoji = selectedEmoji;
     marker.bindTooltip(buildEmojiTooltip(selectedEmoji), { direction: 'top', offset: [0, -iconAnchor - 2], opacity: 0.85 });
-    marker.on('click', removeEmojiMarker);
+    marker.on('click', showEmojiContextMenu);
     saveMapState();
   });
 
