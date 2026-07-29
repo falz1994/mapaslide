@@ -590,6 +590,9 @@ html, body {
   background: #3a3a5e;
   transform: scale(0.92);
 }
+#combo-search:focus {
+  border-color: #4fc3f7 !important;
+}
 #combo-place.active {
   opacity: 1 !important;
   pointer-events: auto !important;
@@ -787,6 +790,7 @@ html, body {
         <span id="combo-count">0 emojis</span>
       </div>
       <div id="combo-strip"></div>
+      <input type="text" id="combo-search" placeholder="Buscar emoji..." autocomplete="off" style="margin: 4px 16px; padding: 8px 12px; border-radius: 10px; border: 1px solid #444; background: #2a2a3e; color: #fff; font-size: 14px; outline: none;">
       <div id="combo-results"></div>
       <div style="display:flex;gap:8px;margin-top:4px;">
         <button id="combo-place" style="flex:1;background:#4caf50;color:#fff;border:none;border-radius:8px;padding:10px;font-weight:600;font-size:14px;cursor:pointer;opacity:0.3;pointer-events:none;">Usar combinación</button>
@@ -1126,6 +1130,7 @@ try {
   var comboStack = document.getElementById('combo-stack');
   var comboStrip = document.getElementById('combo-strip');
   var comboResults = document.getElementById('combo-results');
+  var comboSearch = document.getElementById('combo-search');
   var comboCount = document.getElementById('combo-count');
   var comboPlaceBtn = document.getElementById('combo-place');
   var comboClearBtn = document.getElementById('combo-clear');
@@ -1134,13 +1139,19 @@ try {
   document.getElementById('btn-combo').addEventListener('click', function() {
     comboEmojis = [];
     comboOverlay.classList.add('open');
+    comboSearch.value = '';
     renderComboUI();
     renderComboResults('');
+    setTimeout(function() { comboSearch.focus(); }, 100);
   });
 
   comboClose.addEventListener('click', function() { comboOverlay.classList.remove('open'); });
   comboOverlay.addEventListener('click', function(e) { if (e.target === comboOverlay) comboOverlay.classList.remove('open'); });
   comboClearBtn.addEventListener('click', function() { comboEmojis = []; renderComboUI(); });
+
+  comboSearch.addEventListener('input', function() {
+    renderComboResults(this.value);
+  });
 
   function renderComboUI() {
     comboStack.innerHTML = '';
