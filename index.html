@@ -2243,7 +2243,7 @@ try {
       const btn = document.createElement('button');
       btn.className = 'emoji-btn';
       if (emo.indexOf('_combo_') === 0) {
-        var comboEmojis = emo.replace('_combo_', '').split('');
+        var comboEmojis = Array.from(emo.replace('_combo_', ''));
         btn.innerHTML = '<span style="position:relative;display:inline-block;line-height:1;">' +
           comboEmojis.map(function(em, i) {
             return '<span style="font-size:' + (comboEmojis.length > 4 ? '15px' : '20px') + ';position:' + (comboEmojis.length > 1 ? 'absolute' : 'static') + ';left:50%;top:50%;transform:translate(-50%,-50%) translate(' + (Math.cos(i/comboEmojis.length*Math.PI*2-Math.PI/2)*8) + 'px,' + (Math.sin(i/comboEmojis.length*Math.PI*2-Math.PI/2)*8) + 'px);">' + em + '</span>';
@@ -2411,7 +2411,7 @@ try {
     addToRecent(emo);
     refreshAllEmojiButtons();
     showStopButton(true);
-    var display = emo.indexOf('_combo_') === 0 ? emo.replace('_combo_','').split('').join(' ') : emo;
+    var display = emo.indexOf('_combo_') === 0 ? Array.from(emo.replace('_combo_','')).join(' ') : emo;
     showStatus('Tocá el mapa para colocar ' + display + '   |   ⏹ para detener');
   }
 
@@ -2459,7 +2459,7 @@ try {
   function buildEmojiIconHTML(emojiStr, size) {
     size = size || 36;
     if (emojiStr.indexOf('_combo_') === 0) {
-      var emojis = emojiStr.replace('_combo_', '').split('');
+      var emojis = Array.from(emojiStr.replace('_combo_', ''));
       var n = emojis.length;
       var r = (size / 2) * 0.6;
       var fontSize = n > 4 ? (size * 0.5) : (size * 0.65);
@@ -2476,7 +2476,7 @@ try {
 
   function buildEmojiTooltip(emojiStr) {
     if (emojiStr.indexOf('_combo_') === 0) {
-      return emojiStr.replace('_combo_', '').split('').join(' ');
+      return Array.from(emojiStr.replace('_combo_', '')).join(' ');
     }
     return emojiStr;
   }
