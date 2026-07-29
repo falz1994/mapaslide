@@ -1802,6 +1802,64 @@ html, body {
     { e:'📡', n:'antena satelite satellite antenna comunicacion data' },
     { e:'⚙️', n:'engranaje gear configuracion settings servidor engine' },
     { e:'🏭', n:'fabrica factory industria datacenter infraestructura' },
+
+    // military & vehicles
+    { e:'🪖', n:'casco militar military helmet army soldier ejercito guerre casco' },
+    { e:'🎖️', n:'medalla militar military medal condecoracion medalla honor heroe' },
+    { e:'💣', n:'bomba bomb bomba explotar explosion peligro dinamita' },
+    { e:'🧨', n:'dinamita dynamite tnt explotar explosion fuego mecha' },
+    { e:'🔥', n:'fuego fire llama incendio bombardeo guerra arder' },
+    { e:'💥', n:'explosion collision explosion impacto bomba boom choque' },
+    { e:'⚡', n:'rayo lightning rayo electrico alto voltaje alto voltaje peligro' },
+    { e:'☢️', n:'radioactivo radioactive radiactivo nuclear peligro guerra' },
+    { e:'☣️', n:'biologico biohazard biologico peligro guerra quimico' },
+    { e:'🏹', n:'arco flecha bow arrow arco flecha medieval guerra ballesta' },
+    { e:'🗡️', n:'daga dagger daga puñal arma blanca guerra medieval' },
+    { e:'⚔️', n:'espadas swords espadas guerra batalla combate arma cruzadas' },
+    { e:'🛡️', n:'escudo shield escudo proteccion defensa batalla guerra medieval' },
+    { e:'🥷', n:'ninja sigiloso ninja guerrero sigilo guerra asesino japan' },
+    { e:'💂', n:'guardia guard guardia soldado reina inglaterra vigilante' },
+    { e:'🏰', n:'castillo fortaleza castle fortaleza castillo guerra medieval fort' },
+    { e:'🧱', n:'ladrillos bunker bricks bunker muro ladrillos pared defenza' },
+    { e:'⛽', n:'gasolina combustible fuel pump gasolina combustible tanque suministro' },
+    { e:'🔫', n:'pistola water gun pistola arma agua juguete guerra' },
+    { e:'💣', n:'bomba bomb explosion bomba peligro guerra' },
+    { e:'🚁', n:'helicoptero helicopter helicoptero militar aereo rescate vuelo' },
+    { e:'🛩️', n:'avioneta small airplane avioneta avion ligero aereo vuelo guerra' },
+    { e:'✈️', n:'avion airplane avion vuelo pasajeros aereo viaje' },
+    { e:'🛫', n:'despegue departure despegue avion salida vuelo aeropuerto' },
+    { e:'🛬', n:'aterrizaje arrival aterrizaje avion llegada vuelo aeropuerto' },
+    { e:'🚀', n:'cohete rocket cohete espacio nave espacial lanzamiento misil' },
+    { e:'🛸', n:'ovni ufo flying saucer ovni extraterrestre nave nave espacial' },
+    { e:'🛰️', n:'satelite satellite satelite espacio orbita comunicacion militar' },
+    { e:'🚗', n:'auto car coche vehiculo transporte auto carro sedán' },
+    { e:'🚙', n:'camioneta suv suv truck camioneta todoterreno 4x4 vehiculo' },
+    { e:'🏎️', n:'auto carrera racing car carrera formula f1 velocidad vehiculo rapido' },
+    { e:'🚓', n:'patrulla policia police car patrulla policia sirena vehiculo' },
+    { e:'🚑', n:'ambulancia ambulance ambulancia emergencia hospital vehiculo rescate' },
+    { e:'🚒', n:'bomberos fire truck bomberos camion incendio emergencia vehiculo rescate' },
+    { e:'🛻', n:'pickup truck camioneta pickup pick-up vehiculo carga' },
+    { e:'🚚', n:'camion reparto delivery truck camion reparto entrega carga vehiculo' },
+    { e:'🚛', n:'trailer truck articulated lorry camion trailer trailer camion carga' },
+    { e:'🚜', n:'tractor tractor tractor granja campo maquina vehiculo' },
+    { e:'🏍️', n:'motocicleta motorcycle moto motocicleta vehiculo velocidad motor' },
+    { e:'🛵', n:'motoneta scooter motoneta scooter moto vespa vehiculo ligero' },
+    { e:'🚲', n:'bicicleta bicycle bici bicicleta ciclismo vehiculo pedales' },
+    { e:'⛵', n:'velero sailboat velero barco vela navegacion mar agua' },
+    { e:'🚤', n:'lancha speedboat lancha rapida barco velocidad mar agua motor' },
+    { e:'🛥️', n:'yate motorboat yate lancha barco lujo mar motor' },
+    { e:'🚢', n:'buque ship barco buque gran barco mar carga crucero' },
+    { e:'⛴️', n:'ferry ferry transbordador barco pasajeros mar transporte' },
+    { e:'🛟', n:'salvavidas life preserver salvavidas rescate seguridad mar flotador' },
+    { e:'🏕️', n:'campamento camping campamento tienda campamento guerra militar vivac' },
+    { e:'⛺', n:'carpa tent tienda carpa campamento camping refugio militar' },
+    { e:'🗺️', n:'mapa estrategia world map mapa mundo estrategia guerra plan' },
+    { e:'🎯', n:'diana target bullseye blanco objetivo diana tiro punteria guerra' },
+    { e:'🪖', n:'casco guerra military helmet soldado guerra militar ejercito casco' },
+    { e:'💀', n:'calavera skull calavera muerte peligro craneo guerra esqueleto' },
+    { e:'☠️', n:'calavera huesos skull bones calavera huesos pirata peligro toxico muerte guerra' },
+    { e:'🏴‍☠️', n:'bandera pirata pirate flag bandera pirata saqueo guerra mar' },
+    { e:'🏳️', n:'bandera blanca white flag rendirse rendicion paz guerra bandera blanca' },
   ];
 
   const MAX_RECENT = 18;
@@ -2085,16 +2143,27 @@ html, body {
   btnDraw.addEventListener('click', toggleDrawMode);
 
   function getLatLng(e) {
-    return e.latlng || map.mouseEventToLatLng(e.originalEvent);
+    if (e.latlng) return e.latlng;
+    var ev = e.originalEvent || e;
+    if (ev.touches && ev.touches.length > 0) {
+      return map.mouseEventToLatLng(ev.touches[0]);
+    }
+    if (ev.changedTouches && ev.changedTouches.length > 0) {
+      return map.mouseEventToLatLng(ev.changedTouches[0]);
+    }
+    return map.mouseEventToLatLng(ev);
   }
 
   function startDrawing(e) {
     if (!drawMode) return;
+    if (isDrawing) return;
     if (e.originalEvent && e.originalEvent.target && e.originalEvent.target.closest('#sidebar')) return;
+    if (e.originalEvent && e.originalEvent.target && (e.originalEvent.target.closest('.leaflet-control') || e.originalEvent.target.closest('.toggle-stop'))) return;
     L.DomEvent.preventDefault(e);
     pushUndo();
     isDrawing = true;
-    const ll = getLatLng(e);
+    var ll = getLatLng(e);
+    if (!ll) return;
     currentLine = L.polyline([ll], {
       color: drawColor,
       weight: drawWidth,
