@@ -2165,7 +2165,8 @@ try {
   function startDrawing(e) {
     if (!drawMode) return;
     if (isDrawing) return;
-    if (e.target && (e.target.closest('#sidebar') || e.target.closest('.leaflet-control') || e.target.closest('.toggle-stop') || e.target.closest('#emoji-search-overlay'))) return;
+    if (!e.isPrimary) return;
+    if (e.target && (e.target.closest('#sidebar') || e.target.closest('.leaflet-control') || e.target.closest('#btn-stop') || e.target.closest('#emoji-search-overlay'))) return;
     e.preventDefault();
     pushUndo();
     isDrawing = true;
@@ -2181,6 +2182,7 @@ try {
 
   function moveDrawing(e) {
     if (!drawMode || !isDrawing || !currentLine) return;
+    if (!e.isPrimary) return;
     e.preventDefault();
     currentLine.addLatLng(getLatLngFromPointer(e));
   }
