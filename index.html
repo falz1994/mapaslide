@@ -265,6 +265,12 @@ html, body {
   to { opacity: 1; transform: translateY(0); }
 }
 
+.dog-marker {
+  background: none !important;
+  border: none !important;
+  pointer-events: none !important;
+}
+
 /* ── CONTEXT MENU ───────────────── */
 .ctx-item:hover {
   background: #333 !important;
@@ -922,6 +928,7 @@ try {
 
   let politicalLayer = null;
   let politicalVisible = false;
+  let politicalMarkers = null;
   let cachedGeoJSON = null;
 
   async function togglePolitical() {
@@ -929,6 +936,7 @@ try {
     const btn = document.getElementById('btn-politics');
     if (politicalVisible) {
       if (politicalLayer) { map.removeLayer(politicalLayer); politicalLayer = null; }
+      if (politicalMarkers) { map.removeLayer(politicalMarkers); politicalMarkers = null; }
       politicalVisible = false;
       btn.classList.remove('active');
       document.getElementById('political-legend').style.display = 'none';
@@ -1078,6 +1086,28 @@ try {
         layer.on('mouseout', function() { layer.setStyle({ fillOpacity: 0.45, weight: 1.4 }); });
       },
     }).addTo(map);
+
+    if (politicalMarkers) map.removeLayer(politicalMarkers);
+    politicalMarkers = L.layerGroup().addTo(map);
+    politicalLayer.eachLayer(function(layer) {
+      var pais = findPais(layer.feature);
+      if (!pais) return;
+      if (pais.orientacion === 'derecha' || pais.orientacion === 'izquierda_proeeuu') {
+        try {
+          var center = layer.getBounds().getCenter();
+          L.marker(center, {
+            icon: L.divIcon({
+              className: 'dog-marker',
+              html: '<div style="font-size:16px;filter:drop-shadow(1px 1px 2px rgba(0,0,0,0.7));text-align:center;line-height:1;">🐕</div>',
+              iconSize: [20, 20],
+              iconAnchor: [10, 10],
+            }),
+            interactive: false,
+            keyboard: false,
+          }).addTo(politicalMarkers);
+        } catch(e) {}
+      }
+    });
   }
 
   function findPais(feature) {
