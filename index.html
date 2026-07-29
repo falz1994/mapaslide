@@ -1592,18 +1592,11 @@ try {
     }
     var speed = totalDist / Math.max(durSec * 60, 1);
     var travelled = 0;
-    var forward = true;
-    var segIdx = 0;
 
     function step() {
       if (!map.hasLayer(m)) { m._animFrame = null; return; }
-      if (forward) {
-        travelled += speed;
-        if (travelled >= totalDist) { travelled = totalDist; forward = false; }
-      } else {
-        travelled -= speed;
-        if (travelled <= 0) { travelled = 0; forward = true; }
-      }
+      travelled += speed;
+      if (travelled >= totalDist) travelled = 0;
       var dist = 0;
       for (var j = 1; j < path.length; j++) {
         var segLen = map.distance([path[j-1].lat, path[j-1].lng], [path[j].lat, path[j].lng]);
