@@ -256,6 +256,15 @@ html, body {
 .combo-marker-inner:hover span {
 }
 
+/* ── POLITICAL LEGEND ───────────── */
+#political-legend {
+  animation: legendFadeIn 0.3s ease;
+}
+@keyframes legendFadeIn {
+  from { opacity: 0; transform: translateY(-8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
 /* ── CONTEXT MENU ───────────────── */
 .ctx-item:hover {
   background: #333 !important;
@@ -663,8 +672,13 @@ html, body {
   background: rgba(0,0,0,0.75);
 }
 
-@media (max-width: 500px) {
-  #app {
+  @media (max-width: 500px) {
+    #political-legend {
+      max-width: 170px !important;
+      font-size: 10px !important;
+      top: 50px !important;
+    }
+    #app {
     flex-direction: column;
   }
   #sidebar {
@@ -776,6 +790,12 @@ html, body {
     <div id="anim-toolbar" style="display:none;position:absolute;bottom:100px;left:50%;transform:translateX(-50%);background:#1e1e2e;border-radius:24px;padding:8px 16px;z-index:9999;box-shadow:0 4px 16px rgba(0,0,0,0.5);">
       <button id="anim-start-btn" style="background:#4caf50;color:#fff;border:none;border-radius:16px;padding:8px 18px;font-size:14px;font-weight:600;cursor:pointer;margin-right:8px;">✅ Animar</button>
       <button id="anim-cancel-btn" style="background:#555;color:#fff;border:none;border-radius:16px;padding:8px 14px;font-size:14px;cursor:pointer;">❌ Cancelar</button>
+    </div>
+    <!-- Political legend -->
+    <div id="political-legend" style="display:none;position:absolute;top:10px;right:10px;z-index:9998;background:rgba(30,30,46,0.92);border-radius:12px;padding:12px 14px;box-shadow:0 4px 14px rgba(0,0,0,0.5);font-size:11px;color:#ccc;line-height:1.7;max-width:220px;">
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px;"><span style="display:inline-block;width:12px;height:12px;border-radius:3px;background:#e53935;flex-shrink:0;"></span> Izquierda Soberanista Antiimperialista</div>
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px;"><span style="display:inline-block;width:12px;height:12px;border-radius:3px;background:#f9a825;flex-shrink:0;"></span> Izquierda de Cafetín, pro Imperialista</div>
+      <div style="display:flex;align-items:center;gap:8px;"><span style="display:inline-block;width:12px;height:12px;border-radius:3px;background:#1e88e5;flex-shrink:0;"></span> Extrema Derecha Perros de EEUU</div>
     </div>
   </div>
 
@@ -903,6 +923,7 @@ try {
       if (politicalLayer) { map.removeLayer(politicalLayer); politicalLayer = null; }
       politicalVisible = false;
       btn.classList.remove('active');
+      document.getElementById('political-legend').style.display = 'none';
       showStatus('Mapa político oculto');
       return;
     }
@@ -975,6 +996,7 @@ try {
       }
       renderPoliticalLayer(geojson);
       politicalVisible = true;
+      document.getElementById('political-legend').style.display = 'block';
       showStatus('Mapa político activo: ' + geojson.features.length + ' países');
     } catch(e) {
       btn.classList.remove('active');
