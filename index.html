@@ -1507,12 +1507,12 @@ try {
       showStatus('Dibujá al menos 2 puntos para la ruta');
       return;
     }
-    if (!animTarget) return;
     animTarget._animPath = animGuidePoints.slice().map(function(ll) { return { lat: ll.lat, lng: ll.lng }; });
     animTarget._animIdx = 0;
     animTarget._animForward = true;
+    var m = animTarget;
     cleanupAnimSetup();
-    startMarkerAnimation(animTarget);
+    startMarkerAnimation(m);
     saveMapState();
     showStatus('Animación iniciada');
   }
