@@ -698,7 +698,47 @@ try {
         var urls = [
           'https://cdn.jsdelivr.net/npm/world-atlas@2/countries-110m.json',
           'https://unpkg.com/world-atlas@2/countries-110m.json',
-        ];
+  ];
+
+  /* ── EXPAND EMOJI DB FROM CDN ───── */
+  let EMOJI_SEARCH = EMOJI_DB.slice();
+  let emojiExpanded = false;
+
+  (async function loadEmojiLibrary() {
+    try {
+      var cacheKey = 'map_emoji_full_v2';
+      var cached = localStorage.getItem(cacheKey);
+      if (cached) {
+        var parsed = JSON.parse(cached);
+        if (parsed && parsed.length > 800) {
+          EMOJI_SEARCH = parsed;
+          emojiExpanded = true;
+          console.log('Emoji lib cargada de caché:', EMOJI_SEARCH.length, 'emojis');
+          return;
+        }
+      }
+      console.log('Descargando emoji library...');
+      var resp = await fetch('https://cdn.jsdelivr.net/npm/emoji.json@14.0.0/emoji.json');
+      if (!resp.ok) { console.warn('No se pudo cargar emoji.json'); return; }
+      var lib = await resp.json();
+      var existing = {};
+      EMOJI_DB.forEach(function(item) { existing[item.e] = true; });
+      var merged = EMOJI_DB.slice();
+      lib.forEach(function(item) {
+        if (!item.char || existing[item.char]) return;
+        if (item.char.length > 4 && item.char.codePointAt(0) === 0x1F1E6) return; // skip flags
+        merged.push({ e: item.char, n: item.name.toLowerCase() });
+      });
+      if (merged.length > EMOJI_DB.length) {
+        localStorage.setItem(cacheKey, JSON.stringify(merged));
+        EMOJI_SEARCH = merged;
+        emojiExpanded = true;
+      }
+      console.log('Emoji lib cargada:', EMOJI_SEARCH.length, 'emojis total');
+    } catch(err) {
+      console.warn('Error cargando emoji lib:', err.message);
+    }
+  })();
         var features = null;
         for (var u = 0; u < urls.length; u++) {
           try {
@@ -1931,9 +1971,9 @@ try {
 
     let matches;
     if (q.length === 0) {
-      matches = EMOJI_DB;
+      matches = EMOJI_SEARCH;
     } else {
-      matches = EMOJI_DB.filter(item => item.n.includes(q));
+      matches = EMOJI_SEARCH.filter(item => item.n.includes(q));
     }
 
     if (q.length > 0 && matches.length === 0) {
