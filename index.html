@@ -1452,19 +1452,20 @@ try {
   ctxMenu.addEventListener('click', function(e) {
     var action = e.target.dataset.action;
     if (!action) return;
+    var target = ctxTarget;
     hideContextMenu();
     if (action === 'delete') {
       pushUndo();
-      if (ctxTarget._animFrame) cancelAnimationFrame(ctxTarget._animFrame);
-      emojiLayer.removeLayer(ctxTarget);
+      if (target._animFrame) cancelAnimationFrame(target._animFrame);
+      emojiLayer.removeLayer(target);
       saveMapState();
     }
     if (action === 'animate') {
-      startAnimSetup(ctxTarget);
+      startAnimSetup(target);
     }
     if (action === 'stopAnim') {
-      stopMarkerAnimation(ctxTarget);
-      ctxTarget._animPath = null;
+      stopMarkerAnimation(target);
+      target._animPath = null;
       saveMapState();
       showStatus('Animación detenida');
     }
@@ -2736,7 +2737,7 @@ try {
   map.getContainer().addEventListener('pointerdown', function(e) {
     if (!animSetupActive) return;
     if (!e.isPrimary) return;
-    if (e.target && (e.target.closest('#sidebar') || e.target.closest('.leaflet-control') || e.target.closest('#anim-toolbar'))) return;
+    if (e.target && (e.target.closest('#sidebar') || e.target.closest('.leaflet-control') || e.target.closest('#anim-toolbar') || e.target.closest('#ctx-menu') || e.target.closest('#btn-stop'))) return;
     e.preventDefault();
     e.stopPropagation();
     animIsDrawingPath = true;
