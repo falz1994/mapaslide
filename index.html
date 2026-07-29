@@ -1311,9 +1311,8 @@ try {
         m._emoji = item.e;
         m.bindTooltip(buildEmojiTooltip(item.e), { direction: 'top', offset: [0, -an - 2], opacity: 0.85 });
         m.on('click', showEmojiContextMenu);
-        if (item.animStart && item.animEnd) {
-          m._animStart = L.latLng(item.animStart.lat, item.animStart.lng);
-          m._animEnd = L.latLng(item.animEnd.lat, item.animEnd.lng);
+        if (item.animPath && item.animPath.length >= 2) {
+          m._animPath = item.animPath.map(function(p) { return { lat: p.lat, lng: p.lng }; });
           startMarkerAnimation(m);
         }
       });
@@ -1341,9 +1340,8 @@ try {
     emojiLayer.eachLayer(function(m) {
       const ll = m.getLatLng();
       var item = { e: m._emoji, lat: ll.lat, lng: ll.lng };
-      if (m._animStart && m._animEnd) {
-        item.animStart = { lat: m._animStart.lat, lng: m._animStart.lng };
-        item.animEnd = { lat: m._animEnd.lat, lng: m._animEnd.lng };
+      if (m._animPath && m._animPath.length >= 2) {
+        item.animPath = m._animPath.slice();
       }
       emojis.push(item);
     });
@@ -1466,8 +1464,7 @@ try {
     }
     if (action === 'stopAnim') {
       stopMarkerAnimation(ctxTarget);
-      ctxTarget._animStart = null;
-      ctxTarget._animEnd = null;
+      ctxTarget._animPath = null;
       saveMapState();
       showStatus('Animación detenida');
     }
@@ -1479,92 +1476,112 @@ try {
   /* ── EMOJI ANIMATION ───────────────── */
   var animSetupActive = false;
   var animTarget = null;
-  var animStartMkr = null;
-  var animEndMkr = null;
-  var animPathLine = null;
+  var animGuideLine = null;
+  var animGuidePoints = [];
   var animToolbar = document.getElementById('anim-toolbar');
+  var animStartBtn = document.getElementById('anim-start-btn');
+  var animCancelBtn = document.getElementById('anim-cancel-btn');
 
   function startAnimSetup(marker) {
     animSetupActive = true;
     animTarget = marker;
-    var pos = marker.getLatLng();
-
-    animStartMkr = L.marker(pos, {
-      icon: L.divIcon({ className: 'anim-start-marker', html: '<span class="anim-label">Inicio</span>', iconSize: [60, 24], iconAnchor: [30, 18] }),
-      draggable: false, interactive: false,
-    }).addTo(map);
-
-    animEndMkr = L.marker(pos, {
-      icon: L.divIcon({ className: 'anim-end-marker', html: '<span class="anim-label">Fin (arrastra)</span>', iconSize: [90, 24], iconAnchor: [45, 18] }),
-      draggable: true, interactive: true,
-    }).addTo(map);
-
-    animEndMkr.on('drag', function() {
-      if (animPathLine) map.removeLayer(animPathLine);
-      animPathLine = L.polyline([animStartMkr.getLatLng(), animEndMkr.getLatLng()], {
-        color: '#4fc3f7', weight: 2, dashArray: '8 6', opacity: 0.8,
-      }).addTo(map);
-    });
-
-    animEndMkr.setLatLng([pos.lat + 2, pos.lng + 2]);
-    animPathLine = L.polyline([pos, animEndMkr.getLatLng()], {
-      color: '#4fc3f7', weight: 2, dashArray: '8 6', opacity: 0.8,
-    }).addTo(map);
-
-    animToolbar.style.display = 'block';
-    showStatus('Arrastrá el punto "Fin" y luego presioná ✅ Animar');
+    animGuidePoints = [];
+    animGuideLine = null;
     map.dragging.disable();
+    map.touchZoom.disable();
+    map.scrollWheelZoom.disable();
+    map.doubleClickZoom.disable();
+    map.getContainer().style.cursor = 'crosshair';
+    animStartBtn.textContent = '✅ Finalizar ruta';
+    animStartBtn.style.background = '#4caf50';
+    animToolbar.style.display = 'block';
+    showStatus('Dibujá la ruta de animación en el mapa | ✅ para terminar');
+  }
+
+  function finishAnimSetup() {
+    if (animGuidePoints.length < 2) {
+      showStatus('Dibujá al menos 2 puntos para la ruta');
+      return;
+    }
+    if (!animTarget) return;
+    animTarget._animPath = animGuidePoints.slice().map(function(ll) { return { lat: ll.lat, lng: ll.lng }; });
+    animTarget._animIdx = 0;
+    animTarget._animForward = true;
+    cleanupAnimSetup();
+    startMarkerAnimation(animTarget);
+    saveMapState();
+    showStatus('Animación iniciada');
+  }
+
+  function cleanupAnimSetup() {
+    if (animGuideLine) { map.removeLayer(animGuideLine); animGuideLine = null; }
+    animGuidePoints = [];
+    animIsDrawingPath = false;
+    animSetupActive = false;
+    animTarget = null;
+    animToolbar.style.display = 'none';
+    map.dragging.enable();
+    map.touchZoom.enable();
+    map.scrollWheelZoom.enable();
+    map.doubleClickZoom.enable();
+    map.getContainer().style.cursor = '';
   }
 
   function cancelAnimSetup() {
-    if (animStartMkr) { map.removeLayer(animStartMkr); animStartMkr = null; }
-    if (animEndMkr) { map.removeLayer(animEndMkr); animEndMkr = null; }
-    if (animPathLine) { map.removeLayer(animPathLine); animPathLine = null; }
-    animToolbar.style.display = 'none';
-    animSetupActive = false;
-    animTarget = null;
-    map.dragging.enable();
+    cleanupAnimSetup();
     showStatus('Animación cancelada');
   }
 
-  document.getElementById('anim-start-btn').addEventListener('click', function() {
-    if (!animTarget || !animStartMkr || !animEndMkr) return;
-    animTarget._animStart = animStartMkr.getLatLng();
-    animTarget._animEnd = animEndMkr.getLatLng();
-    animTarget._animProgress = 0;
-    animTarget._animForward = true;
-    cancelAnimSetup();
-    startMarkerAnimation(animTarget);
-    saveMapState();
-    showStatus('Animación iniciada (loop)');
-  });
-
-  document.getElementById('anim-cancel-btn').addEventListener('click', cancelAnimSetup);
+  animStartBtn.addEventListener('click', finishAnimSetup);
+  animCancelBtn.addEventListener('click', cancelAnimSetup);
 
   function startMarkerAnimation(m) {
-    if (m._animFrame) cancelAnimationFrame(m._animFrame);
-    var start = m._animStart;
-    var end = m._animEnd;
-    var speed = 0.002;
+    stopMarkerAnimation(m);
+    if (!m._animPath || m._animPath.length < 2) return;
+    var path = m._animPath;
+    var speed = 0.003;
+    var stepIdx = m._animIdx || 0;
+    var progress = 0;
     var forward = m._animForward !== false;
+    var totalSegments = path.length - 1;
 
     function step() {
       if (!map.hasLayer(m)) { m._animFrame = null; return; }
-      var p = m._animProgress;
+      var segFrom = path[stepIdx];
+      var segTo = forward ? path[stepIdx + 1] : path[stepIdx - 1];
       if (forward) {
-        p += speed;
-        if (p >= 1) { p = 1; forward = false; }
+        progress += speed;
+        if (progress >= 1) {
+          progress = 0;
+          stepIdx++;
+          if (stepIdx >= totalSegments) {
+            stepIdx = totalSegments - 1;
+            forward = false;
+            progress = 0.99;
+          }
+        }
       } else {
-        p -= speed;
-        if (p <= 0) { p = 0; forward = true; }
+        progress -= speed;
+        if (progress <= 0) {
+          progress = 0;
+          stepIdx--;
+          if (stepIdx <= 0) {
+            stepIdx = 1;
+            forward = true;
+            progress = 0.01;
+          }
+        }
       }
-      m._animProgress = p;
-      m._animForward = forward;
-      var lat = start.lat + (end.lat - start.lat) * p;
-      var lng = start.lng + (end.lng - start.lng) * p;
+      var lat = segFrom.lat + ((segTo.lat - segFrom.lat) * progress);
+      var lng = segFrom.lng + ((segTo.lng - segFrom.lng) * progress);
       m.setLatLng([lat, lng]);
+      m._animIdx = stepIdx;
+      m._animForward = forward;
       m._animFrame = requestAnimationFrame(step);
     }
+    if (forward) { stepIdx = 0; progress = 0; }
+    else { stepIdx = totalSegments; progress = 1; }
+    m._animIdx = stepIdx;
     m._animFrame = requestAnimationFrame(step);
   }
 
@@ -1573,7 +1590,7 @@ try {
   }
 
   function isAnimated(m) {
-    return !!(m._animStart && m._animEnd);
+    return !!(m._animPath && m._animPath.length >= 2);
   }
 
   /* ── EMOJI DATABASE ──────────────── */
@@ -2699,6 +2716,47 @@ try {
     }
     return emojiStr;
   }
+
+  /* ── ANIMATION ROUTE DRAWING ──────── */
+  var animIsDrawingPath = false;
+
+  function updateAnimGuideLine() {
+    if (animGuideLine) map.removeLayer(animGuideLine);
+    if (animGuidePoints.length >= 2) {
+      animGuideLine = L.polyline(animGuidePoints, {
+        color: '#4fc3f7', weight: 3, opacity: 0.85, dashArray: '8 6',
+      }).addTo(map);
+    }
+  }
+
+  map.getContainer().addEventListener('pointerdown', function(e) {
+    if (!animSetupActive) return;
+    if (!e.isPrimary) return;
+    if (e.target && (e.target.closest('#sidebar') || e.target.closest('.leaflet-control') || e.target.closest('#anim-toolbar'))) return;
+    e.preventDefault();
+    e.stopPropagation();
+    animIsDrawingPath = true;
+    var rect = map.getContainer().getBoundingClientRect();
+    var ll = map.containerPointToLatLng([e.clientX - rect.left, e.clientY - rect.top]);
+    animGuidePoints.push(ll);
+    updateAnimGuideLine();
+  });
+
+  map.getContainer().addEventListener('pointermove', function(e) {
+    if (!animSetupActive || !animIsDrawingPath) return;
+    if (!e.isPrimary) return;
+    e.preventDefault();
+    var rect = map.getContainer().getBoundingClientRect();
+    var ll = map.containerPointToLatLng([e.clientX - rect.left, e.clientY - rect.top]);
+    animGuidePoints.push(ll);
+    updateAnimGuideLine();
+  });
+
+  map.getContainer().addEventListener('pointerup', function(e) {
+    if (!animSetupActive) return;
+    animIsDrawingPath = false;
+    showStatus('Puntos: ' + animGuidePoints.length + ' | ✅ para terminar');
+  });
 
   /* ── PLACE EMOJI ON MAP ──────────── */
   map.on('click', function(e) {
