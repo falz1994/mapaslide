@@ -210,6 +210,11 @@ html, body {
   border: none !important;
 }
 
+.combo-marker {
+  background: none !important;
+  border: none !important;
+}
+
 .emoji-marker-inner {
   font-size: 28px;
   text-align: center;
@@ -236,6 +241,20 @@ html, body {
 .emoji-marker-inner:hover .clear-emoji-btn {
   opacity: 1;
   pointer-events: auto;
+}
+
+.combo-marker-inner .clear-emoji-btn {
+  top: -6px;
+  right: -6px;
+}
+
+.combo-marker-inner:hover .clear-emoji-btn {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.combo-marker-inner:hover span {
+  /* prevent clear-btn hover issues */
 }
 
 /* ── STOP BUTTON ────────────── */
@@ -449,6 +468,166 @@ html, body {
   background: #039be5;
 }
 
+/* ── COMBO OVERLAY ──────────────── */
+#combo-overlay {
+  position: fixed;
+  top: 0; left: 0; right: 0; bottom: 0;
+  background: rgba(0,0,0,0.7);
+  z-index: 99999;
+  display: none;
+  align-items: flex-start;
+  justify-content: center;
+  padding-top: 40px;
+}
+#combo-overlay.open { display: flex; }
+
+#combo-panel {
+  background: #1e1e2e;
+  border-radius: 16px;
+  width: 92%;
+  max-width: 440px;
+  max-height: 85vh;
+  overflow: hidden;
+  box-shadow: 0 20px 50px rgba(0,0,0,0.5);
+  display: flex;
+  flex-direction: column;
+}
+#combo-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 16px 8px;
+}
+#combo-close {
+  width: 36px; height: 36px;
+  font-size: 20px;
+  background: #333;
+  border: none;
+  border-radius: 50%;
+  color: #fff;
+  cursor: pointer;
+}
+#combo-preview {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 12px 16px;
+  background: #141420;
+  margin: 0 16px;
+  border-radius: 12px;
+  min-height: 70px;
+}
+#combo-stack {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  width: 60px;
+  height: 60px;
+}
+#combo-stack span {
+  position: absolute;
+  font-size: 28px;
+  filter: drop-shadow(0 2px 4px rgba(0,0,0,0.5));
+}
+#combo-count {
+  font-size: 13px;
+  color: #888;
+}
+#combo-strip {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  padding: 8px 16px;
+  min-height: 36px;
+  align-items: center;
+}
+#combo-strip .combo-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: #333;
+  border-radius: 16px;
+  padding: 4px 8px 4px 10px;
+  font-size: 20px;
+  cursor: pointer;
+}
+#combo-strip .combo-chip .combo-remove {
+  font-size: 14px;
+  width: 18px; height: 18px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background: #555;
+  color: #fff;
+  cursor: pointer;
+  line-height: 1;
+}
+#combo-results {
+  flex: 1;
+  overflow-y: auto;
+  display: flex;
+  flex-wrap: wrap;
+  align-content: flex-start;
+  justify-content: center;
+  gap: 5px;
+  padding: 10px 12px;
+}
+#combo-results .emoji-btn {
+  width: 46px; height: 46px;
+  font-size: 24px;
+  border: 1px solid #333;
+  border-radius: 8px;
+  background: #2a2a3e;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+#combo-results .emoji-btn:active {
+  background: #3a3a5e;
+  transform: scale(0.92);
+}
+#combo-place.active {
+  opacity: 1 !important;
+  pointer-events: auto !important;
+}
+#combo-place:active { background: #388e3c !important; }
+
+.combo-marker-inner {
+  position: relative;
+  width: 40px;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+.combo-marker-inner span {
+  position: absolute;
+  font-size: 22px;
+  filter: drop-shadow(1px 2px 3px rgba(0,0,0,0.6));
+}
+.combo-recent-badge {
+  position: relative;
+  display: inline-block;
+}
+.combo-recent-badge::after {
+  content: 'cmb';
+  position: absolute;
+  bottom: -2px;
+  right: -2px;
+  font-size: 7px;
+  font-weight: 700;
+  background: #4caf50;
+  color: #fff;
+  padding: 1px 3px;
+  border-radius: 3px;
+  line-height: 1;
+}
+
 .text-marker-inner {
   font-size: 20px;
   text-align: center;
@@ -541,6 +720,7 @@ html, body {
 
   <div id="sidebar">
     <button class="tool-btn" id="btn-search" title="Buscar emoji">🔍</button>
+    <button class="tool-btn" id="btn-combo" title="Combinar emojis">➕</button>
 
     <span class="section-label">Historial</span>
     <div id="emoji-grid"></div>
@@ -592,6 +772,26 @@ html, body {
       <textarea id="text-input" placeholder="Escribí tu texto. Enter para nueva línea." autocomplete="off"></textarea>
       <div id="text-preview"></div>
       <button id="text-place">📍 Colocar en el mapa</button>
+    </div>
+  </div>
+
+  <!-- COMBO OVERLAY -->
+  <div id="combo-overlay">
+    <div id="combo-panel">
+      <div id="combo-header">
+        <span style="font-weight:600;color:#fff;">Combinar emojis</span>
+        <button id="combo-close">&times;</button>
+      </div>
+      <div id="combo-preview">
+        <div id="combo-stack"></div>
+        <span id="combo-count">0 emojis</span>
+      </div>
+      <div id="combo-strip"></div>
+      <div id="combo-results"></div>
+      <div style="display:flex;gap:8px;margin-top:4px;">
+        <button id="combo-place" style="flex:1;background:#4caf50;color:#fff;border:none;border-radius:8px;padding:10px;font-weight:600;font-size:14px;cursor:pointer;opacity:0.3;pointer-events:none;">Usar combinación</button>
+        <button id="combo-clear" style="background:#555;color:#fff;border:none;border-radius:8px;padding:10px 12px;font-size:14px;cursor:pointer;">✕</button>
+      </div>
     </div>
   </div>
 
@@ -920,6 +1120,94 @@ try {
     showStatus('Texto "' + text + '" colocado. Arrastralo para moverlo.');
   });
 
+  /* ── COMBO CREATOR ─────────────────── */
+  var comboOverlay = document.getElementById('combo-overlay');
+  var comboClose = document.getElementById('combo-close');
+  var comboStack = document.getElementById('combo-stack');
+  var comboStrip = document.getElementById('combo-strip');
+  var comboResults = document.getElementById('combo-results');
+  var comboCount = document.getElementById('combo-count');
+  var comboPlaceBtn = document.getElementById('combo-place');
+  var comboClearBtn = document.getElementById('combo-clear');
+  var comboEmojis = [];
+
+  document.getElementById('btn-combo').addEventListener('click', function() {
+    comboEmojis = [];
+    comboOverlay.classList.add('open');
+    renderComboUI();
+    renderComboResults('');
+  });
+
+  comboClose.addEventListener('click', function() { comboOverlay.classList.remove('open'); });
+  comboOverlay.addEventListener('click', function(e) { if (e.target === comboOverlay) comboOverlay.classList.remove('open'); });
+  comboClearBtn.addEventListener('click', function() { comboEmojis = []; renderComboUI(); });
+
+  function renderComboUI() {
+    comboStack.innerHTML = '';
+    comboStrip.innerHTML = '';
+    var n = comboEmojis.length;
+    comboCount.textContent = n + ' emoji' + (n !== 1 ? 's' : '');
+    if (n === 0) {
+      comboPlaceBtn.classList.remove('active');
+      comboStack.innerHTML = '<span style="color:#666;font-size:24px;">+</span>';
+      return;
+    }
+    comboPlaceBtn.classList.add('active');
+    var r = 18;
+    comboEmojis.forEach(function(em, i) {
+      var angle = (i / n) * Math.PI * 2 - Math.PI / 2;
+      var dx = Math.cos(angle) * r;
+      var dy = Math.sin(angle) * r;
+      var span = document.createElement('span');
+      span.textContent = em;
+      span.style.transform = 'translate(' + dx + 'px,' + dy + 'px)';
+      span.style.fontSize = (n > 4 ? '20px' : '28px');
+      comboStack.appendChild(span);
+
+      var chip = document.createElement('span');
+      chip.className = 'combo-chip';
+      chip.innerHTML = em + '<span class="combo-remove" data-idx="' + i + '">&times;</span>';
+      chip.querySelector('.combo-remove').addEventListener('click', function(e) {
+        e.stopPropagation();
+        comboEmojis.splice(parseInt(this.dataset.idx), 1);
+        renderComboUI();
+      });
+      comboStrip.appendChild(chip);
+    });
+  }
+
+  function renderComboResults(query) {
+    comboResults.innerHTML = '';
+    var q = query.toLowerCase().trim();
+    var src = EMOJI_SEARCH;
+    var matches = q.length === 0 ? src.slice(0, 100) : src.filter(function(item) { return item.n.includes(q); });
+    if (matches.length > 120) matches = matches.slice(0, 120);
+    matches.forEach(function(item) {
+      var btn = document.createElement('button');
+      btn.className = 'emoji-btn';
+      btn.textContent = item.e;
+      btn.addEventListener('click', function() {
+        if (comboEmojis.length >= 8) { showStatus('Máximo 8 emojis por combinación'); return; }
+        comboEmojis.push(item.e);
+        renderComboUI();
+      });
+      comboResults.appendChild(btn);
+    });
+  }
+
+  comboPlaceBtn.addEventListener('click', function() {
+    if (comboEmojis.length === 0) return;
+    var comboStr = '_combo_' + comboEmojis.join('');
+    comboOverlay.classList.remove('open');
+    if (drawMode) toggleDrawMode();
+    if (selectedEmoji === comboStr) { stopPlacing(); return; }
+    selectedEmoji = comboStr;
+    addToRecent(comboStr);
+    refreshAllEmojiButtons();
+    showStopButton(true);
+    showStatus('Tocá el mapa para colocar combinación | ⏹ para detener');
+  });
+
   /* ── UNDO / REDO ──────────────────── */
   const MAX_HISTORY = 80;
   let undoStack = [];
@@ -952,13 +1240,16 @@ try {
     textLayer.clearLayers();
     if (state.emojis) {
       state.emojis.forEach(function(item) {
+        var isC = item.e.indexOf('_combo_') === 0;
+        var sz = isC ? 44 : 36;
+        var an = sz / 2;
         const icon = L.divIcon({
-          html: '<div class="emoji-marker-inner">' + item.e + '<span class="clear-emoji-btn">&times;</span></div>',
-          className: 'emoji-marker', iconSize: [36, 36], iconAnchor: [18, 18],
+          html: buildEmojiIconHTML(item.e, sz),
+          className: isC ? 'combo-marker' : 'emoji-marker', iconSize: [sz, sz], iconAnchor: [an, an],
         });
         const m = L.marker([item.lat, item.lng], { icon, interactive: true }).addTo(emojiLayer);
         m._emoji = item.e;
-        m.bindTooltip(item.e, { direction: 'top', offset: [0, -18], opacity: 0.85 });
+        m.bindTooltip(buildEmojiTooltip(item.e), { direction: 'top', offset: [0, -an - 2], opacity: 0.85 });
         m.on('click', removeEmojiMarker);
       });
     }
@@ -1022,11 +1313,14 @@ try {
     textLayer.clearLayers();
     if (state.emojis) {
         state.emojis.forEach(function(item) {
+          var isC2 = item.e.indexOf('_combo_') === 0;
+          var sz2 = isC2 ? 44 : 36;
+          var an2 = sz2 / 2;
           const icon = L.divIcon({
-            html: '<div class="emoji-marker-inner">' + item.e + '<span class="clear-emoji-btn">&times;</span></div>',
-            className: 'emoji-marker',
-            iconSize: [36, 36],
-            iconAnchor: [18, 18],
+            html: buildEmojiIconHTML(item.e, sz2),
+            className: isC2 ? 'combo-marker' : 'emoji-marker',
+            iconSize: [sz2, sz2],
+            iconAnchor: [an2, an2],
           });
           const marker = L.marker([item.lat, item.lng], { icon, interactive: true }).addTo(emojiLayer);
           marker._emoji = item.e;
@@ -1948,7 +2242,18 @@ try {
     recentEmojis.forEach(emo => {
       const btn = document.createElement('button');
       btn.className = 'emoji-btn';
-      btn.textContent = emo;
+      if (emo.indexOf('_combo_') === 0) {
+        var comboEmojis = emo.replace('_combo_', '').split('');
+        btn.innerHTML = '<span style="position:relative;display:inline-block;line-height:1;">' +
+          comboEmojis.map(function(em, i) {
+            return '<span style="font-size:' + (comboEmojis.length > 4 ? '15px' : '20px') + ';position:' + (comboEmojis.length > 1 ? 'absolute' : 'static') + ';left:50%;top:50%;transform:translate(-50%,-50%) translate(' + (Math.cos(i/comboEmojis.length*Math.PI*2-Math.PI/2)*8) + 'px,' + (Math.sin(i/comboEmojis.length*Math.PI*2-Math.PI/2)*8) + 'px);">' + em + '</span>';
+          }).join('') +
+          '<span style="position:absolute;bottom:-1px;right:-1px;font-size:7px;font-weight:700;background:#4caf50;color:#fff;padding:0px 2px;border-radius:2px;line-height:1;">+</span></span>';
+        btn.style.fontSize = '14px';
+      } else {
+        btn.textContent = emo;
+      }
+      btn.dataset.emoji = emo;
       if (selectedEmoji === emo) btn.classList.add('selected');
       btn.addEventListener('click', () => selectEmojiFromSidebar(emo, btn));
       emojiGrid.appendChild(btn);
@@ -2106,12 +2411,14 @@ try {
     addToRecent(emo);
     refreshAllEmojiButtons();
     showStopButton(true);
-    showStatus('Tocá el mapa para colocar ' + emo + '   |   ⏹ para detener');
+    var display = emo.indexOf('_combo_') === 0 ? emo.replace('_combo_','').split('').join(' ') : emo;
+    showStatus('Tocá el mapa para colocar ' + display + '   |   ⏹ para detener');
   }
 
   function refreshAllEmojiButtons() {
     document.querySelectorAll('.emoji-btn').forEach(btn => {
-      if (btn.textContent === selectedEmoji) {
+      var btnEmoji = btn.dataset.emoji || btn.textContent;
+      if (btnEmoji === selectedEmoji) {
         btn.classList.add('selected');
       } else {
         btn.classList.remove('selected');
@@ -2148,21 +2455,50 @@ try {
     stopPlacing();
   });
 
+  /* ── EMOJI ICON BUILDER ───────────── */
+  function buildEmojiIconHTML(emojiStr, size) {
+    size = size || 36;
+    if (emojiStr.indexOf('_combo_') === 0) {
+      var emojis = emojiStr.replace('_combo_', '').split('');
+      var n = emojis.length;
+      var r = (size / 2) * 0.6;
+      var fontSize = n > 4 ? (size * 0.5) : (size * 0.65);
+      var spans = emojis.map(function(em, i) {
+        var angle = (i / n) * Math.PI * 2 - Math.PI / 2;
+        var dx = Math.cos(angle) * r;
+        var dy = Math.sin(angle) * r;
+        return '<span style="position:absolute;font-size:' + fontSize + 'px;transform:translate(' + dx + 'px,' + dy + 'px);filter:drop-shadow(1px 2px 3px rgba(0,0,0,0.6));">' + em + '</span>';
+      }).join('');
+      return '<div class="combo-marker-inner" style="width:' + size + 'px;height:' + size + 'px;">' + spans + '<span class="clear-emoji-btn">&times;</span></div>';
+    }
+    return '<div class="emoji-marker-inner">' + emojiStr + '<span class="clear-emoji-btn">&times;</span></div>';
+  }
+
+  function buildEmojiTooltip(emojiStr) {
+    if (emojiStr.indexOf('_combo_') === 0) {
+      return emojiStr.replace('_combo_', '').split('').join(' ');
+    }
+    return emojiStr;
+  }
+
   /* ── PLACE EMOJI ON MAP ──────────── */
   map.on('click', function(e) {
     if (!selectedEmoji) return;
 
     pushUndo();
+    var isCombo = selectedEmoji.indexOf('_combo_') === 0;
+    var iconSize = isCombo ? 44 : 36;
+    var iconAnchor = isCombo ? 22 : 18;
     const icon = L.divIcon({
-      html: '<div class="emoji-marker-inner">' + selectedEmoji + '<span class="clear-emoji-btn">&times;</span></div>',
-      className: 'emoji-marker',
-      iconSize: [36, 36],
-      iconAnchor: [18, 18],
+      html: buildEmojiIconHTML(selectedEmoji, iconSize),
+      className: isCombo ? 'combo-marker' : 'emoji-marker',
+      iconSize: [iconSize, iconSize],
+      iconAnchor: [iconAnchor, iconAnchor],
     });
 
     const marker = L.marker(e.latlng, { icon, interactive: true }).addTo(emojiLayer);
     marker._emoji = selectedEmoji;
-    marker.bindTooltip(selectedEmoji, { direction: 'top', offset: [0, -18], opacity: 0.85 });
+    marker.bindTooltip(buildEmojiTooltip(selectedEmoji), { direction: 'top', offset: [0, -iconAnchor - 2], opacity: 0.85 });
     marker.on('click', removeEmojiMarker);
     saveMapState();
   });
