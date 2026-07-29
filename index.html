@@ -2089,6 +2089,10 @@ try {
   }
 
   function stopPlacing() {
+    if (drawMode) {
+      toggleDrawMode();
+      return;
+    }
     selectedEmoji = null;
     showStopButton(false);
     refreshAllEmojiButtons();
@@ -2128,17 +2132,24 @@ try {
       if (selectedEmoji) {
         selectedEmoji = null;
         refreshAllEmojiButtons();
-        showStopButton(false);
       }
       btnDraw.classList.add('active');
       drawOpts.classList.add('open');
+      showStopButton(true);
       map.dragging.disable();
+      map.touchZoom.disable();
+      map.scrollWheelZoom.disable();
+      map.doubleClickZoom.disable();
       map.getContainer().style.cursor = 'crosshair';
       showStatus('Modo dibujo: dibujá en el mapa');
     } else {
       btnDraw.classList.remove('active');
       drawOpts.classList.remove('open');
+      showStopButton(false);
       map.dragging.enable();
+      map.touchZoom.enable();
+      map.scrollWheelZoom.enable();
+      map.doubleClickZoom.enable();
       map.getContainer().style.cursor = '';
       showStatus('Dibujo desactivado');
     }
